@@ -29,15 +29,15 @@
 
 ## 3. Los kits de Qt
 
-- [ ] 3.1 Crear `components/qt.sh` y `components/qt-wasm.sh` a partir de `setup-qt.sh`, con aqt en `software/aqt-venv`, el sello y la comprobación de módulos. Instalarlos. Verificar:
+- [x] 3.1 Crear `components/qt.sh` y `components/qt-wasm.sh` a partir de `setup-qt.sh`, con aqt en `software/aqt-venv`, el sello y la comprobación de módulos. Instalarlos. Verificar:
   - que los dos kits tienen `Qt6TaskTree` y `Qt6WebSockets`;
   - que el emsdk instalado es el `QT_EMCC_RECOMMENDED_VERSION` del kit WebAssembly;
   - que al quitar `lib/cmake/Qt6WebSockets` del kit de escritorio, `./install.sh qt` lo reinstala completo.
-- [ ] 3.2 Crear `components/qt-static.sh` a partir de la parte de Qt de `build-static-deps.sh`, con las mismas opciones y módulos. Instalarlo y medir el tiempo. Verificar:
+- [x] 3.2 Crear `components/qt-static.sh` a partir de la parte de Qt de `build-static-deps.sh`, con las mismas opciones y módulos. Instalarlo y medir el tiempo. Verificar:
   - que tiene los seis módulos y ninguna `libQt6*.so`;
   - que `bin/qtpaths6 --qt-query QT_VERSION` da 6.12.0 desde una shell sin `LD_LIBRARY_PATH`;
   - que con un kit al que le falta un módulo, en un `SOFTWARE_DIR` de `tmp/`, el componente comprueba las descargas, lo borra y empieza a compilar qtbase. Se interrumpe ahí y se borra ese directorio.
-- [ ] 3.3 Documentar los kits en `docs/toolchain.md` y en el README: los módulos como unión de lo que usan los proyectos, las opciones del estático, los requisitos del sistema, el tiempo y el disco. Verificar que coincide con los scripts.
+- [x] 3.3 Documentar los kits en `docs/toolchain.md` y en el README: los módulos como unión de lo que usan los proyectos, las opciones del estático, los requisitos del sistema, el tiempo y el disco. Verificar que coincide con los scripts.
 
 ## 4. Las librerías
 

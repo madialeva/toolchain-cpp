@@ -178,6 +178,72 @@ the key of its release manager, pinned by its fingerprint (§1.4).
   through `std::__open_terminal` and `std::__write_to_terminal`, which GCC 16 still
   keeps in `libstdc++exp.a`. The test program prints with `std::format` instead.
 
+### 2.3 qt and qt-wasm
+
+The official Qt 6.12.0 kits, installed with aqtinstall in a virtual environment
+of its own (`software/aqt-venv`), which checks every archive against the checksums
+of Qt's repository:
+
+- **`qt`:** the desktop kit for Linux x86_64 (`linux_gcc_64`), in
+  `software/Qt/6.12.0/gcc_64`. It is the kit of the projects' native builds, and
+  the host (`QT_HOST_PATH`) of the WebAssembly kit.
+- **`qt-wasm`:**
+  - the `wasm_singlethread` kit, in `software/Qt/6.12.0/wasm_singlethread`;
+  - emsdk 5.0.5, in `software/emsdk`. It is the Emscripten release that Qt
+    release requires: the component fails if the kit's
+    `QT_EMCC_RECOMMENDED_VERSION` (in `QtPublicWasmToolchainHelpers.cmake`) is
+    not the version in `versions.sh`, so Qt and emsdk are upgraded together;
+  - Python 3.12 through uv, in uv's standard location (`~/.local/bin/python3.12`),
+    because Emscripten needs 3.10 or later and EL9 ships 3.9. `EMSDK_PYTHON` must
+    point to it, also after sourcing `emsdk_env.sh`, which clears it.
+
+Both kits carry, beyond aqt's default modules, one list that is the union of what
+the projects need (`lib/aqt.sh`): qttasktree, a dependency of QmlAssetDownloader,
+and qtwebsockets, guita's persistent channel. A kit that lacks one of them is
+installed again whole. Requirements: python3 with venv, and git and uv for
+`qt-wasm`. Both take a couple of minutes, most of it downloading.
+
+### 2.4 qt-static
+
+Qt 6.12.0, static, for Linux, in `software/Qt/6.12.0-static`: the kit of the
+projects' self-contained executables, built with the native GCC from Qt's
+sources. Every tarball is checked against the SHA-256 that download.qt.io
+publishes (Qt's tarballs are not signed), and they stay in `software/src/qt-6.12.0`
+with their source trees.
+
+- **One kit for every project**, with the union of what they use:
+  - qtbase with Qt SQL and the SQLite driver on Qt's own copy of SQLite, every
+    other driver off;
+  - qtshadertools, qtsvg, qtdeclarative and qtwebsockets;
+  - the Linguist tools of qttools.
+
+  The six modules are compiled in order against that prefix
+  (`qt-configure-module`), qtsvg before qtdeclarative, an optional dependency of
+  it. A kit that lacks a module of the list is removed and built again whole,
+  after every download is checked: modules built against another configuration of
+  qtbase must not be mixed.
+- **Every feature that would otherwise depend on the `-devel` packages installed
+  is fixed**, so the result does not change with them:
+  - only X11 (xcb, with its GLX and EGL integrations), without Wayland or the
+    embedded backends;
+  - Qt's own copies of PCRE2, HarfBuzz, libpng, libjpeg, double-conversion, libb2
+    and md4c, which not every desktop has;
+  - the system's zlib, freetype, fontconfig, OpenGL and X11 libraries;
+  - OpenSSL and D-Bus loaded at run time (`-openssl-runtime`,
+    `-no-feature-dbus-linked`: `-dbus-runtime` does not reach CMake in 6.12.0);
+  - no ICU (Qt has its own CLDR data), GLib, Widgets, printing, session
+    management, GSSAPI, Brotli or zstd; qttools builds only its Linguist tools.
+- **Qt keeps its default C++ standard.** Unlike abseil's, Qt's ABI does not depend
+  on the standard of the application.
+- **Its build tools get a run path** to the native GCC's `libstdc++` (§1.5).
+- **Requirements and cost:** CMake 3.25+, Ninja, and the development packages of
+  OpenSSL, libxcb and xcb-util (`xcb-util`, `-wm`, `-image`, `-keysyms`,
+  `-renderutil`, `-cursor`), libxkbcommon and libxkbcommon-x11, fontconfig,
+  freetype, Mesa (GL and EGL), X11 and zlib. It takes about half an hour with 12
+  cores (28 minutes on the development machine), and close to 40 GB of free disk
+  at its peak for the build trees, removed after each module; the kit takes
+  1.1 GB, and its tarballs and sources 0.8 GB.
+
 ## 3. Versions
 
 `versions.sh` holds the version of every component; each one can be overridden
