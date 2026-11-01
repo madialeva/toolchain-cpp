@@ -148,6 +148,18 @@ Cada componente compila lo mismo que el script del que sale: las mismas versione
 
 Para comprobarlo, se compila todo desde cero en `software/` y se compara con `~/software`: las versiones que informan y la lista de ficheros de cada prefijo.
 
+Resultado, tras compilarlo todo:
+- **Iguales, fichero a fichero:** los dos compiladores, el Qt estático, la libpq estática, libpqxx, cpp-httplib, protobuf, el protobuf para WebAssembly y buf. GCC tiene las mismas opciones de configuración.
+- **Los kits de aqt:** a los nuevos les faltan los ficheros de QtGrpc y QtProtobuf (y su `FindWrapProtoc.cmake`), que sí tienen los de `~/software`. Los instaló el `setup-qt.sh` de guita hasta que su cambio #8 dejó Qt Protobuf, y aqt nunca borra módulos. Los kits nuevos llevan exactamente la lista de módulos actual.
+- **emsdk** se compara por versión, porque el directorio guarda cachés que Emscripten genera con el uso. Los dos son la 5.0.5, del mismo commit.
+
+Lo medido al compilarlo todo:
+- GCC: 55 minutos y 11 GB en el pico;
+- el compilador cruzado: 13 minutos y 9 GB;
+- el Qt estático: 28 minutos y cerca de 40 GB en el pico, mucho más que los «varios GB» que decía guita;
+- los kits de aqt con emsdk: 2 minutos;
+- las librerías: 6 minutos.
+
 ### 8. Versionado y flujo de trabajo
 
 - **`VERSION`** es la versión del repositorio, con el mismo flujo de GitHub que guita: rama `develop/vX.Y.Z`, `release/vX.Y.Z` y tag `vX.Y.Z`. `scripts/check-version.sh <rama>` la compara con la rama.
@@ -163,7 +175,9 @@ Para comprobarlo, se compila todo desde cero en `software/` y se compara con `~/
 
 Se documenta en el README y en `docs/toolchain.md`, y cada proyecto lo adopta en su cambio:
 - **Ubicación:** `toolchain-cpp` clonado junto al proyecto (`~/src/toolchain-cpp` al lado de `~/src/guita`).
-- **Presets:** las rutas son relativas al proyecto, sin variables de entorno: `${sourceDir}/../toolchain-cpp/software/gcc-16.2.0/bin/g++`. Quien lo tenga en otro sitio las cambia en su `CMakeUserPresets.json`.
+- **Presets:** las rutas parten del directorio padre del proyecto, sin variables de entorno: `${sourceParentDir}/toolchain-cpp/software/gcc-16.2.0/bin/g++`. Quien lo tenga en otro sitio las cambia en su `CMakeUserPresets.json`.
+
+  Al probar guita se vio que no vale `${sourceDir}/..`. En el build WebAssembly, Qt no encuentra los paquetes del host, como sus herramientas de Linguist, a través de un `QT_HOST_PATH` con `..`. `${sourceParentDir}` da la misma ruta ya normalizada.
 - **Scripts:** una variable con el directorio de instalación, por defecto `../toolchain-cpp/software` relativo al proyecto.
 - **CI:**
   - dos checkouts, uno al lado del otro, el de `toolchain-cpp` en el tag que fija el proyecto;

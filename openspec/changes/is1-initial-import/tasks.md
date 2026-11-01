@@ -58,17 +58,17 @@
 
 ## 5. La integración
 
-- [ ] 5.1 Comparar cada prefijo de `software/` con el de `~/software`: las versiones que informan y la lista de ficheros. Anotar en el diseño (decisión 7) cualquier diferencia y su causa.
-- [ ] 5.2 Probar guita de extremo a extremo con un `CMakeUserPresets.json` local, sin tocar ningún fichero versionado de guita, con presets que apuntan a `${sourceDir}/../toolchain-cpp/software`. Verificar:
+- [x] 5.1 Comparar cada prefijo de `software/` con el de `~/software`: las versiones que informan y la lista de ficheros. Anotar en el diseño (decisión 7) cualquier diferencia y su causa.
+- [x] 5.2 Probar guita de extremo a extremo con un `CMakeUserPresets.json` local, sin tocar ningún fichero versionado de guita, con presets que apuntan a `${sourceParentDir}/toolchain-cpp/software`. Al principio apuntaban a `${sourceDir}/../toolchain-cpp/software`, y el build WebAssembly no encontraba las herramientas de Linguist del host a través del `..` (decisión 9). Verificar:
   - el build nativo con `ctest` completo;
   - el build WebAssembly;
   - el cliente estático, con `scripts/build-static.sh --check` sobre el ejecutable.
 
   Después se borra ese fichero.
-- [ ] 5.3 Crear `.github/workflows/ci.yml` según la decisión 10. Verificar sus pasos en local:
+- [x] 5.3 Crear `.github/workflows/ci.yml` según la decisión 10. Verificar sus pasos en local:
   - las comprobaciones rápidas, en esta máquina;
   - la instalación de prueba, en un contenedor `gcc:16.2.0-trixie` con Docker.
 
   Verificar también que un error de sintaxis puesto a propósito en un script hace fallar la comprobación nombrándolo.
-- [ ] 5.4 Completar el README con el uso desde un proyecto (decisión 9): ejemplo de preset, de script y de CI. Completar el CHANGELOG. Verificar que los comandos documentados funcionan tal cual.
+- [x] 5.4 Completar el README con el uso desde un proyecto (decisión 9): ejemplo de preset, de script y de CI. Completar el CHANGELOG. Verificar que los comandos documentados funcionan tal cual.
 - [ ] 5.5 El usuario revisa el repositorio y da el visto bueno.

@@ -288,7 +288,31 @@ their version (`software/src/<name>-<version>`), each in its own prefix:
 They need CMake 3.25+, Ninja and git. Together they take about six minutes with
 12 cores, most of it protobuf and abseil, and their build trees take little disk.
 
-## 3. Versions
+## 3. Using it from a project
+
+- **Where:** toolchain-cpp is cloned next to the project (`~/src/toolchain-cpp`
+  beside `~/src/guita`), at the tag of the version the project pins, and installs
+  the components the project lists in its documentation and its CI.
+- **Presets:** the project's CMake presets name the prefixes from the project's
+  parent directory, with no environment variables:
+  `${sourceParentDir}/toolchain-cpp/software/gcc-16.2.0/bin/g++`,
+  `${sourceParentDir}/toolchain-cpp/software/Qt/6.12.0/gcc_64`, ... Not
+  `${sourceDir}/../toolchain-cpp`: in a cross build (WebAssembly), Qt does not find
+  the host's packages, such as its Linguist tools, through a `QT_HOST_PATH` with
+  `..`, and `${sourceParentDir}` gives the same path normalized. With toolchain-cpp
+  somewhere else, a `CMakeUserPresets.json` in the project changes the paths.
+- **Scripts:** the project's scripts take the installation directory from
+  `SOFTWARE_DIR`, by default `$ROOT/../toolchain-cpp/software`, `$ROOT` being the
+  project's root.
+- **CI (GitHub Actions):** inside the official GCC image (`gcc:16.2.0-trixie`),
+  the project and toolchain-cpp are checked out side by side, toolchain-cpp at the
+  pinned tag. `software/gcc-16.2.0` is a link to the image's GCC (`/usr/local`),
+  which the `gcc` component takes as installed (§1.3), so the job never builds
+  GCC. `software/` is cached without that link, keyed by the pinned tag and the
+  components; `install.sh` then finds everything installed (§1.3) or installs what
+  is missing.
+
+## 4. Versions
 
 `versions.sh` holds the version of every component; each one can be overridden
 from the environment (`GCC_VERSION=16.2.0 ./install.sh gcc`). The repository's

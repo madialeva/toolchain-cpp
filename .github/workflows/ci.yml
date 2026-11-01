@@ -1,0 +1,104 @@
+# Checks every push to a development or release branch and every pull request toward
+# one: the version against the branch, the syntax of the scripts, and a test
+# installation of quick components inside the official image of the native GCC, the
+# one the projects' CI runs in (docs/toolchain.md). GCC and Qt are never built here.
+name: CI
+
+on:
+  push:
+    branches: ['develop/**', 'release/**']
+  pull_request:
+    branches: ['develop/**', 'release/**']
+  workflow_dispatch:
+
+# A new run of the same branch or pull request cancels the one in progress
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Version and syntax
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      # The branch pushed to, or the base branch of the pull request; a manual run
+      # has no branch to compare with
+      - name: Check the version against the branch
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          BRANCH: ${{ github.base_ref || github.ref_name }}
+        run: scripts/check-version.sh "$BRANCH"
+
+      - name: Check the syntax of the scripts
+        run: |
+          status=0
+          for script in install.sh versions.sh lib/*.sh components/*.sh scripts/*.sh; do
+              if ! bash -n "$script"; then
+                  echo "::error file=$script::Syntax error in $script"
+                  status=1
+              fi
+          done
+          exit "$status"
+
+  install:
+    name: Test installation
+    runs-on: ubuntu-24.04
+    container: gcc:16.2.0-trixie
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      # So that the native compiler of versions.sh and this image cannot drift apart
+      - name: Check the image's GCC against versions.sh
+        run: |
+          source versions.sh
+          actual="$(g++ -dumpfullversion)"
+          if [[ "$actual" != "$GCC_VERSION" ]]; then
+              echo "::error::The image has GCC $actual, but versions.sh has $GCC_VERSION:" \
+                   "change the image tag and versions.sh together"
+              exit 1
+          fi
+          echo "GCC $actual, as versions.sh"
+
+      - name: Install the system packages
+        run: |
+          apt-get update
+          apt-get install --yes --no-install-recommends cmake ninja-build zlib1g-dev
+
+      # As in the projects' CI: the gcc component takes a link to a GCC of its version
+      # as installed, so nothing builds GCC here
+      - name: Link the image's GCC as the native compiler
+        run: |
+          source versions.sh
+          mkdir -p software
+          ln -sfn /usr/local "software/gcc-$GCC_VERSION"
+
+      # install.sh, the components it needs, the stamp, checked downloads (a release's
+      # checksums, a git tag) and the native compiler, in a couple of minutes
+      - name: Install quick components
+        run: ./install.sh cpp-httplib buf
+
+      # A second run finds them installed and installs nothing
+      - name: Check them
+        run: |
+          source versions.sh
+          ./install.sh --list
+          output="$(./install.sh cpp-httplib buf)"
+          echo "$output"
+          if grep -q '^>> installing' <<<"$output"; then
+              echo "::error::A second run installed the components again"
+              exit 1
+          fi
+          "software/buf-$BUF_VERSION/bin/buf" --version
+          test -f "software/cpp-httplib-$HTTPLIB_VERSION/include/httplib.h"

@@ -44,6 +44,64 @@ than `software/`.
 What is built carries absolute paths: do not move the repository after building,
 and do not run `git clean -xdf` in it, which would remove everything built.
 
+## Using it from a project
+
+Clone toolchain-cpp next to the project, at the version the project pins, and
+install the components the project lists:
+
+```sh
+git clone --branch v0.1.0 https://github.com/madialeva/toolchain-cpp.git ~/src/toolchain-cpp
+~/src/toolchain-cpp/install.sh gcc qt libpqxx cpp-httplib protobuf buf
+```
+
+The project's CMake presets name the components from the project's parent
+directory, `${sourceParentDir}`, with no environment variables:
+
+```json
+{
+  "name": "native",
+  "cacheVariables": {
+    "CMAKE_CXX_COMPILER": "${sourceParentDir}/toolchain-cpp/software/gcc-16.2.0/bin/g++",
+    "CMAKE_PREFIX_PATH": "${sourceParentDir}/toolchain-cpp/software/Qt/6.12.0/gcc_64;${sourceParentDir}/toolchain-cpp/software/protobuf-36.2"
+  }
+}
+```
+
+Not `${sourceDir}/..`: Qt does not find the host's packages (such as its
+Linguist tools) through a path with `..` in a cross build. With toolchain-cpp
+somewhere else, a `CMakeUserPresets.json` in the project changes those paths. The project's scripts take the installation directory from
+a variable with the same default:
+
+```sh
+SOFTWARE_DIR="${SOFTWARE_DIR:-$ROOT/../toolchain-cpp/software}"
+```
+
+In GitHub Actions, the project and toolchain-cpp are checked out side by side,
+inside the official GCC image: the `gcc` component takes a link to the image's
+GCC as installed, so the job does not build GCC, and `software/` is cached by the
+pinned version and the components:
+
+```yaml
+container: gcc:16.2.0-trixie
+steps:
+  - uses: actions/checkout@v7
+    with:
+      path: project
+  - uses: actions/checkout@v7
+    with:
+      repository: madialeva/toolchain-cpp
+      ref: v0.1.0
+      path: toolchain-cpp
+  - run: mkdir -p toolchain-cpp/software && ln -sfn /usr/local toolchain-cpp/software/gcc-16.2.0
+  - uses: actions/cache@v6
+    with:
+      path: |
+        toolchain-cpp/software
+        !toolchain-cpp/software/gcc-16.2.0
+      key: toolchain-cpp-v0.1.0-qt-libpqxx-cpp-httplib-protobuf-buf
+  - run: toolchain-cpp/install.sh qt libpqxx cpp-httplib protobuf buf
+```
+
 ## Versions
 
 `versions.sh` holds the version of every component. The repository has its own
