@@ -38,5 +38,5 @@
 
 ## 4. Verificación
 
-- [ ] 4.1 El usuario hace push de la rama y el CI pasa.
-- [ ] 4.2 El usuario revisa el cambio y da el visto bueno.
+- [x] 4.1 El usuario hace push de la rama y el CI pasa.
+- [x] 4.2 El usuario revisa el cambio y da el visto bueno.
