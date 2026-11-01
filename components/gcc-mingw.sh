@@ -28,6 +28,10 @@
 # there is one, in a Wine prefix of its own (~/.wine is not touched) and without a
 # display.
 #
+# It also installs toolchain.cmake, the CMake toolchain file of the compiler, with
+# every path relative to itself; an installed compiler that lacks it gets it without
+# building anything.
+#
 #   components/gcc-mingw.sh                       install, then check
 #   components/gcc-mingw.sh --check               only check the installed compiler
 #   components/gcc-mingw.sh --check <executable>  only check the DLLs and the TLS of
@@ -48,6 +52,8 @@ MINGW_KEY=CAF5641F74F7DFBA88AE205693BDB53CD4EBC740
 NAME=gcc-mingw
 VERSION="$GCC_VERSION"
 PREFIXES=("$PREFIX")
+# Installed: stamped, and with its CMake toolchain file
+is_installed() { installed "$PREFIX" && [[ -f "$PREFIX/toolchain.cmake" ]]; }
 USAGE="[--status | --check [<executable>]]"
 
 # check_executable <executable>: fails, naming them, if <executable> imports a DLL that
@@ -284,7 +290,45 @@ install() {
     rm -rf "$work"
 }
 
-after_install() { check_compiler; }
+# write_toolchain_file: the CMake toolchain file, next to the compiler. A cross-built Qt
+# kit chain-loads it by its absolute path, and the projects' presets name it. Its paths
+# are relative to the file; the roots of a build's dependencies go to
+# CMAKE_FIND_ROOT_PATH, and nothing of the Linux system is found
+write_toolchain_file() {
+    cat >"$PREFIX/toolchain.cmake" <<'EOF'
+# The CMake toolchain of toolchain-cpp's gcc-mingw component: builds for 64-bit Windows
+# with the GCC of this prefix, found relative to this file (docs/toolchain.md).
+# The roots of the dependencies (the prefixes of the -mingw components) go to
+# CMAKE_FIND_ROOT_PATH; libraries, headers and packages are only searched for there
+# and in the compiler's sysroot, never in the Linux system.
+set(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_SYSTEM_PROCESSOR x86_64)
+
+set(_toolchain_cpp_mingw "${CMAKE_CURRENT_LIST_DIR}/bin/x86_64-w64-mingw32")
+set(CMAKE_C_COMPILER "${_toolchain_cpp_mingw}-gcc")
+set(CMAKE_CXX_COMPILER "${_toolchain_cpp_mingw}-g++")
+set(CMAKE_RC_COMPILER "${_toolchain_cpp_mingw}-windres")
+set(CMAKE_AR "${_toolchain_cpp_mingw}-ar")
+set(CMAKE_RANLIB "${_toolchain_cpp_mingw}-ranlib")
+
+list(APPEND CMAKE_FIND_ROOT_PATH "${CMAKE_CURRENT_LIST_DIR}/x86_64-w64-mingw32")
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+EOF
+    say "the CMake toolchain file is $PREFIX/toolchain.cmake"
+}
+
+after_install() {
+    write_toolchain_file
+    check_compiler
+}
+
+# An installed compiler that lacks the toolchain file gets it, building nothing
+if [[ $# -eq 0 ]] && installed "$PREFIX" && [[ ! -f "$PREFIX/toolchain.cmake" ]]; then
+    write_toolchain_file
+fi
 
 case "${1:-}" in
     --check)

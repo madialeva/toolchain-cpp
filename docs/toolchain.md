@@ -174,6 +174,16 @@ the key of its release manager, pinned by its fingerprint (§1.4).
 
   `--check <executable>` applies the DLL and TLS checks to any executable (the
   TLS one needs its symbols).
+- **The CMake toolchain file**, `software/gcc-16.2.0-mingw/toolchain.cmake`, builds
+  for 64-bit Windows with this compiler: `-DCMAKE_TOOLCHAIN_FILE=` with its path,
+  and the prefixes of the `-mingw` components a build needs in
+  `CMAKE_FIND_ROOT_PATH` (and `CMAKE_PREFIX_PATH`). It names the compiler and its
+  binutils relative to itself, so it moves with the prefix, and it only searches
+  for libraries, headers and packages in those roots and the compiler's sysroot,
+  never in the Linux system (`CMAKE_FIND_ROOT_PATH_MODE_*` `ONLY`, programs
+  `NEVER`). A cross-built Qt kit chain-loads it by its absolute path. It is part
+  of the installation: a compiler that lacks it gets it without building
+  anything.
 - **`std::print` needs `-lstdc++exp`** on Windows: it writes to the console
   through `std::__open_terminal` and `std::__write_to_terminal`, which GCC 16 still
   keeps in `libstdc++exp.a`. The test program prints with `std::format` instead.
@@ -198,8 +208,9 @@ of Qt's repository:
     point to it, also after sourcing `emsdk_env.sh`, which clears it.
 
 Both kits carry, beyond aqt's default modules, one list that is the union of what
-the projects need (`lib/aqt.sh`): qttasktree, a dependency of QmlAssetDownloader,
-and qtwebsockets, guita's persistent channel. A kit that lacks one of them is
+the projects need (`lib/aqt.sh`): qttasktree, a dependency of QmlAssetDownloader;
+qtwebsockets, guita's persistent channel; and qtshadertools, whose `qsb` the cross
+build of Qt Quick for Windows (`qt-mingw`) needs on the host. A kit that lacks one of them is
 installed again whole. Requirements: python3 with venv, and git and uv for
 `qt-wasm`. Both take a couple of minutes, most of it downloading.
 
