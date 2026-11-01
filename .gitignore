@@ -1,0 +1,12 @@
+# Everything the components download, build and install (SOFTWARE_DIR)
+/software/
+
+# Local working material, never published
+/tmp/
+
+# IDEs
+.vscode/
+
+# ---- AI's folders and files ----
+.claude/
+.opencode/
