@@ -44,9 +44,10 @@ require() {
 }
 
 # component_main "$@": the command line of a component script, which defines NAME,
-# VERSION, PREFIXES and install, and may redefine is_installed. With --status it only
-# answers, with its exit status, whether the component is installed; without arguments
-# it installs the component unless it is installed
+# VERSION, PREFIXES and install, and may redefine is_installed, define after_install
+# (run once the prefixes are stamped) and set USAGE (its own options). With --status
+# it only answers, with its exit status, whether the component is installed; without
+# arguments it installs the component unless it is installed
 is_installed() { installed "${PREFIXES[@]}"; }
 component_main() {
     case "${1:-}" in
@@ -65,9 +66,12 @@ component_main() {
     install
     mark_installed "${PREFIXES[@]}"
     say "$NAME $VERSION installed in ${PREFIXES[*]}"
+    if declare -F after_install >/dev/null; then
+        after_install
+    fi
 }
 component_usage() {
-    echo "usage: $0 [--status]" >&2
+    echo "usage: $0 ${USAGE:-[--status]}" >&2
     exit 2
 }
 

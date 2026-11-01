@@ -17,15 +17,15 @@
 
 ## 2. Los compiladores
 
-- [ ] 2.1 Crear `components/gcc.sh` a partir de `build-gcc.sh` de guita, con el sello y el caso del enlace simbólico (decisión 4). Instalarlo en `software/` y medir el tiempo. Verificar:
+- [x] 2.1 Crear `components/gcc.sh` a partir de `build-gcc.sh` de guita, con el sello y el caso del enlace simbólico (decisión 4). Instalarlo en `software/` y medir el tiempo. Verificar:
   - que `software/gcc-16.2.0/bin/g++ -dumpfullversion` da 16.2.0, y que compila un programa en C++26 con `-freflection`;
   - que `-v` muestra las mismas opciones de configuración que el `~/software/gcc-16.2.0` de hoy;
   - que con un `SOFTWARE_DIR` en `tmp/` donde `gcc-16.2.0` es un enlace a `~/software/gcc-16.2.0`, el componente lo da por instalado sin compilar nada.
-- [ ] 2.2 Crear `components/gcc-mingw.sh` a partir de `build-gcc-mingw.sh`, con el sello en lugar de la marca `libstdc++.a`, y con `--check` y `--check <ejecutable>`. Instalarlo. Verificar:
+- [x] 2.2 Crear `components/gcc-mingw.sh` a partir de `build-gcc-mingw.sh`, con el sello en lugar de la marca `libstdc++.a`, y con `--check` y `--check <ejecutable>`. Instalarlo. Verificar:
   - que termina con la comprobación pasada con Wine;
   - que `--check` sobre un ejecutable que importa una DLL de prueba llamada `libstdc++-6.dll` falla y la nombra;
   - que con el keyring de GNU en lugar del de mingw-w64, en un `SOFTWARE_DIR` de `tmp/`, falla antes de compilar nombrando el tarball (escenario «Firma de otra clave»).
-- [ ] 2.3 Documentar los dos compiladores en `docs/toolchain.md` (configuración, por qué, tiempo y disco medidos) y en el README. Verificar que coincide con los scripts.
+- [x] 2.3 Documentar los dos compiladores en `docs/toolchain.md` (configuración, por qué, tiempo y disco medidos) y en el README. Verificar que coincide con los scripts.
 
 ## 3. Los kits de Qt
 

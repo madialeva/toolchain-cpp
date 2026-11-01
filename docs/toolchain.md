@@ -80,7 +80,105 @@ system's), so that it runs without `LD_LIBRARY_PATH`. The C++ libraries are
 built in C++26, the projects' standard: abseil aliases `std` types depending on
 the standard, and must agree with the projects.
 
-## 2. Versions
+## 2. Components
+
+### 2.1 gcc
+
+GCC 16.2.0 for C and C++, the native compiler of the projects, in
+`software/gcc-16.2.0`. It is built from the GNU sources, checked against the GNU
+keyring, with GMP, MPFR, MPC and ISL built in its source tree (no `-devel`
+packages), and configured as the official `gcc:16.2.0-trixie` image the projects'
+CI runs in: `--disable-multilib`, the default full bootstrap, C and C++ only. The
+local compiler and the CI's are therefore the same release with the same defaults
+(upstream GCC enables neither PIE nor the stack protector by default, unlike
+distribution packages).
+
+- **Its binutils are fixed.** It takes the `as` and `ld` found in the PATH when it
+  is configured (`--with-as`, `--with-ld`), so that a later change of PATH does not
+  give it other binutils: on EL9 with gcc-toolset-14 enabled, binutils 2.41
+  instead of the system's 2.35. If those binutils are removed, build it again.
+- **Its `libstdc++` is newer than the system's** (`GLIBCXX_3.4.29` on EL9): what is
+  built with it needs a run path to its directory, as the components do (§1.5),
+  and so do the projects' executables.
+- **A symbolic link counts as installed.** In the projects' CI, `gcc-16.2.0` is a
+  link to the GCC of the official image, and the component does not build anything
+  (§1.3).
+- **Requirements and cost:** a C++ compiler to build it (the system's `g++`), make,
+  m4, bzip2, xz, curl and gpgv. The full bootstrap takes about an hour with 12
+  cores (55 minutes on the development machine), with 11 GB of disk at its peak
+  for the build trees, removed at the end; the compiler takes 0.3 GB, and its
+  tarball 0.1 GB.
+
+### 2.2 gcc-mingw
+
+A GCC 16.2.0 cross compiler for C and C++ that runs on Linux and builds 64-bit
+Windows executables (`x86_64-w64-mingw32`), in `software/gcc-16.2.0-mingw`: the
+native compiler's release, built with it from the same tarball, with binutils 2.47
+and mingw-w64 14.0.0 (the Windows and C runtime headers, the C runtime and
+winpthreads). No prebuilt toolchain fits: the MinGW-w64 ones with GCC run on
+Windows, llvm-mingw is Clang, and EL9's (`mingw64-gcc` in CodeReady Builder) is
+GCC 14. GCC and binutils are checked against the GNU keyring, and mingw-w64 against
+the key of its release manager, pinned by its fingerprint (§1.4).
+
+- **The target:**
+  - Windows 10 or later, the minimum of Qt 6.12, with the Universal C Runtime
+    (`--with-default-msvcrt=ucrt`, `--with-default-win32-winnt=0x0A00`);
+  - SEH exceptions;
+  - POSIX threads on winpthreads (`--enable-threads=posix`), as in Qt's MinGW,
+    MSYS2 and Fedora;
+  - GCC 16's native Windows TLS for `thread_local` (`--enable-tls`, which needs
+    binutils 2.44 or later) instead of the emulated one;
+  - libstdc++'s `steady_clock` and sleeps on the `clock_gettime` and `nanosleep`
+    of winpthreads (`--enable-libstdcxx-time=yes`: by default, on mingw,
+    `steady_clock` is the wall clock).
+- **Static runtime only** (`--disable-shared`, and winpthreads static). What the
+  compiler builds carries libgcc, libstdc++ and winpthreads inside, without
+  `-static`, and needs only system DLLs: `KERNEL32.dll` and the UCRT's. The price
+  is that no two DLLs can share one runtime, so it cannot build a shared Qt for
+  Windows; that would take the compiler again with `--enable-shared`.
+- **The prefix is also the sysroot** (`--with-sysroot`). mingw-w64 goes to
+  `x86_64-w64-mingw32/{include,lib}`, next to libstdc++, and a relative link
+  `mingw` points to it, because GCC looks for the system headers and libraries in
+  `<sysroot>/mingw/include` and `<sysroot>/mingw/lib`. With the sysroot inside the
+  prefix, GCC and ld find it relative to themselves, so the prefix can be moved.
+- **The build** has no bootstrap, as no cross compiler does, and runs in a work
+  directory of its own in `software/src`, removed at the end:
+  1. binutils;
+  2. the mingw-w64 headers;
+  3. GCC alone (`make all-gcc`);
+  4. with it, the C runtime and winpthreads, static because libgcc does not exist
+     yet;
+  5. the rest of GCC.
+
+  Meanwhile its `bin` goes first in the PATH, since the configure scripts of
+  mingw-w64 find the cross tools by name and EL9 has others in `/usr/bin`. The
+  compiler's programs (`cc1plus`, `lto1`, ...) link libstdc++ statically, so they
+  need no run path. It takes about a quarter of an hour with 12 cores (13 minutes
+  on the development machine), with 9 GB of disk at its peak; the compiler takes
+  0.5 GB, and the tarballs of binutils and mingw-w64 40 MB more.
+- **The check**, at the end of the installation and on demand with
+  `components/gcc-mingw.sh --check`:
+  - it builds with no extra flags a C++26 test program the script carries: four
+    `std::jthread`s that count in a `thread_local` variable and catch an
+    exception, a `shared_ptr` copied into each, and pack indexing;
+  - it fails, naming them, if the program imports any DLL other than
+    `KERNEL32.dll`, `ucrtbase.dll` and the UCRT's `api-ms-win-crt-*.dll` (the
+    cross `objdump -p`), or carries symbols of the emulated TLS (`__emutls*`, with
+    `nm`);
+  - with Wine in the PATH, it runs the program and compares its output and exit
+    status with the expected ones: in a temporary Wine prefix, removed with its
+    `wineserver` afterwards, so `~/.wine` is never created or touched; without
+    `DISPLAY` or `WAYLAND_DISPLAY`, so no window opens; with Mono and Gecko
+    disabled (`WINEDLLOVERRIDES`); and within two minutes. Without Wine it warns
+    and skips the run.
+
+  `--check <executable>` applies the DLL and TLS checks to any executable (the
+  TLS one needs its symbols).
+- **`std::print` needs `-lstdc++exp`** on Windows: it writes to the console
+  through `std::__open_terminal` and `std::__write_to_terminal`, which GCC 16 still
+  keeps in `libstdc++exp.a`. The test program prints with `std::format` instead.
+
+## 3. Versions
 
 `versions.sh` holds the version of every component; each one can be overridden
 from the environment (`GCC_VERSION=16.2.0 ./install.sh gcc`). The repository's
