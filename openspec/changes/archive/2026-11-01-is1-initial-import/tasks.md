@@ -71,4 +71,4 @@
 
   Verificar también que un error de sintaxis puesto a propósito en un script hace fallar la comprobación nombrándolo.
 - [x] 5.4 Completar el README con el uso desde un proyecto (decisión 9): ejemplo de preset, de script y de CI. Completar el CHANGELOG. Verificar que los comandos documentados funcionan tal cual.
-- [ ] 5.5 El usuario revisa el repositorio y da el visto bueno.
+- [x] 5.5 El usuario revisa el repositorio y da el visto bueno.
