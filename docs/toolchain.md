@@ -244,6 +244,50 @@ with their source trees.
   at its peak for the build trees, removed after each module; the kit takes
   1.1 GB, and its tarballs and sources 0.8 GB.
 
+### 2.5 libpq-static
+
+libpq of PostgreSQL 18.6, static, in `software/libpq-18.6-static`: the libpq of
+the projects' self-contained executables, built with the native GCC. The tarball
+is checked against the SHA-256 that ftp.postgresql.org publishes.
+
+- **The client part only.** It is PostgreSQL's client-only installation with
+  `configure`: the headers, libpq, the common and port libraries libpq needs
+  (`libpgcommon_shlib.a`, `libpgport_shlib.a`, the PIC variants its shared libpq
+  is built from), and `pg_config`.
+- **With OpenSSL**, and `--without-icu --without-readline --without-zlib`, which
+  only the server and the tools use. GSSAPI and LDAP are off by default.
+- **No shared libpq.** It is removed after installing, so that `FindPostgreSQL`
+  can only find `libpq.a`.
+- **Requirements:** make, bzip2 and the development packages of OpenSSL. It takes
+  about a minute.
+
+### 2.6 Libraries
+
+Built with the native GCC in C++26, from the official repositories at the tag of
+their version (`software/src/<name>-<version>`), each in its own prefix:
+
+- **`libpqxx` 8.0.2**, the C++ client of PostgreSQL: static and PIC, since the
+  projects also link it into Qt executables. It needs the development files of
+  libpq (`libpq5-devel` or `libpq-devel`).
+- **`cpp-httplib` 0.61.0**, an embedded HTTP server, header-only, with zlib
+  compression (the development files of zlib). TLS is terminated by a reverse
+  proxy, and Brotli and zstd stay off, so that the result does not depend on the
+  optional libraries installed.
+- **`protobuf` 36.2** with abseil (a submodule, installed next to it): static and
+  PIC, with `protoc`, which gets a run path to the native GCC's `libstdc++`. abseil
+  is built in C++26, the projects' standard, so that it and the projects agree on
+  the `std` types it aliases (`string_view`, `optional`, ...).
+- **`protobuf-wasm`**: the same protobuf and abseil for WebAssembly, in
+  `software/protobuf-36.2-wasm`, built with the emsdk of `qt-wasm` for its
+  `wasm_singlethread` kit: no threads and Emscripten's default exception
+  handling, as the kit, and C++26. It has no `protoc`: the native one generates
+  the code, and both must be the same version, which the generated code checks.
+- **`buf` 1.74.0**, the lint and breaking-change checks of Protobuf contracts: the
+  release's binary, checked against the release's `sha256.txt`.
+
+They need CMake 3.25+, Ninja and git. Together they take about six minutes with
+12 cores, most of it protobuf and abseil, and their build trees take little disk.
+
 ## 3. Versions
 
 `versions.sh` holds the version of every component; each one can be overridden

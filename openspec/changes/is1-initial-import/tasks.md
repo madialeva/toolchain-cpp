@@ -41,19 +41,20 @@
 
 ## 4. Las librerías
 
-- [ ] 4.1 Crear `components/libpqxx.sh`, `cpp-httplib.sh`, `protobuf.sh`, `protobuf-wasm.sh` y `buf.sh` a partir de `build-deps.sh`, con el sello. Instalarlos. Verificar:
+- [x] 4.1 Crear `components/libpqxx.sh`, `cpp-httplib.sh`, `protobuf.sh`, `protobuf-wasm.sh` y `buf.sh` a partir de `build-deps.sh`, con el sello. Instalarlos. Verificar:
   - que el `protoc` instalado informa de 36.2 desde una shell sin `LD_LIBRARY_PATH`;
   - que `protobuf-36.2-wasm` no tiene `protoc`;
   - que `buf --version` da 1.74.0;
   - que una segunda ejecución de `./install.sh` con los cinco termina sin compilar nada.
-- [ ] 4.2 Crear `components/libpq-static.sh` a partir de la parte de libpq de `build-static-deps.sh`. Instalarlo. Verificar que tiene `libpq.a`, `libpgcommon_shlib.a` y `libpgport_shlib.a`, ninguna `libpq.so*`, y que `pg_config --version` da 18.6.
-- [ ] 4.3 Comprobar los escenarios de `instalacion` con componentes rápidos, en un `SOFTWARE_DIR` de `tmp/` con el GCC enlazado:
+- [x] 4.2 Crear `components/libpq-static.sh` a partir de la parte de libpq de `build-static-deps.sh`. Instalarlo. Verificar que tiene `libpq.a`, `libpgcommon_shlib.a` y `libpgport_shlib.a`, ninguna `libpq.so*`, y que `pg_config --version` da 18.6.
+- [x] 4.3 Comprobar los escenarios de `instalacion` con componentes rápidos, en un `SOFTWARE_DIR` de `tmp/` con el GCC enlazado:
   - con el tarball de PostgreSQL truncado, `libpq-static` falla antes de compilar, nombra el fichero y no crea su prefijo;
-  - `cpp-httplib` interrumpido durante su compilación no queda sellado, y la siguiente ejecución lo instala desde el principio;
+  - `libpqxx` interrumpido durante su compilación no queda sellado, y la siguiente ejecución lo instala desde el principio. Se probó con `libpqxx` y no con `cpp-httplib`, que solo instala cabeceras y termina en un par de segundos;
+  - un prefijo de `cpp-httplib` sin sello y con un fichero de sobra se da por no instalado, se borra y se instala de nuevo, sin ese fichero;
   - el directorio `software/` del repositorio no aparece en `git status`.
 
   Después se borra el directorio.
-- [ ] 4.4 Documentar las librerías en `docs/toolchain.md` y en el README. Verificar que coincide con los scripts.
+- [x] 4.4 Documentar las librerías en `docs/toolchain.md` y en el README. Verificar que coincide con los scripts.
 
 ## 5. La integración
 
