@@ -23,10 +23,17 @@
 # manager, fetched once from keyserver.ubuntu.com by the fingerprint fixed below.
 #
 # The installation ends checking the compiler: it builds a C++26 test program with
-# threads, thread_local, exceptions and shared_ptr, fails if the program imports any
+# threads, thread_local, exceptions, copies of standard exceptions and shared_ptr,
+# optimized and not, fails if the program imports any
 # DLL that is not of the system or uses the emulated TLS, and runs it with Wine if
 # there is one, in a Wine prefix of its own (~/.wine is not touched) and without a
 # display.
+#
+# It also installs toolchain.cmake, the CMake toolchain file of the compiler, with
+# every path relative to itself, and applies to the installed libstdc++ headers the
+# patches of patches/gcc-$GCC_VERSION-mingw-*.patch (GCC bugs that only show on
+# Windows); an installed compiler that lacks either gets them without building
+# anything, and is checked again.
 #
 #   components/gcc-mingw.sh                       install, then check
 #   components/gcc-mingw.sh --check               only check the installed compiler
@@ -44,10 +51,17 @@ TARGET=x86_64-w64-mingw32
 PREFIX="$SOFTWARE_DIR/gcc-$GCC_VERSION-mingw"
 # The key that signs the mingw-w64 releases (Jonathan Yong)
 MINGW_KEY=CAF5641F74F7DFBA88AE205693BDB53CD4EBC740
+# The installed libstdc++ headers, and the patches for them of this GCC release
+HEADERS="$PREFIX/$TARGET/include/c++/$GCC_VERSION"
+shopt -s nullglob
+HEADER_PATCHES=("$TOOLCHAIN_ROOT/patches/gcc-$GCC_VERSION-mingw-"*.patch)
+shopt -u nullglob
 
 NAME=gcc-mingw
 VERSION="$GCC_VERSION"
 PREFIXES=("$PREFIX")
+# Installed: stamped, with its CMake toolchain file and its header patches applied
+is_installed() { installed "$PREFIX" && [[ -f "$PREFIX/toolchain.cmake" ]] && headers_patched; }
 USAGE="[--status | --check [<executable>]]"
 
 # check_executable <executable>: fails, naming them, if <executable> imports a DLL that
@@ -76,8 +90,9 @@ check_executable() {
 }
 
 # The test program and what it prints: threads that count in a thread_local variable
-# and catch an exception, a shared_ptr copied into each, and a C++26 feature
-EXPECTED="threads=4 thread_local=4000 exceptions=4 shared_ptr=1 c++26=26"
+# and catch an exception, copies and moves of standard exceptions, a shared_ptr copied
+# into each thread, and a C++26 feature
+EXPECTED="threads=4 thread_local=4000 exceptions=4 copies=3 shared_ptr=1 c++26=26"
 write_test_program() {
     cat <<'EOF'
 #include <atomic>
@@ -86,6 +101,7 @@ write_test_program() {
 #include <memory>
 #include <stdexcept>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -120,13 +136,29 @@ int main() {
             });
         }
     }
+    // Copies and moves of the exceptions whose members C++26 defines in the headers and
+    // libstdc++.a out of line (patches/gcc-16.2.0-mingw-stdexcept.patch)
+    std::logic_error logic("logic");
+    std::runtime_error runtime("runtime");
+    std::range_error range("range");
+    auto logic_copy = logic;
+    auto runtime_copy = std::move(runtime);
+    auto range_copy = range;
+    logic = std::move(logic_copy);
+    runtime = runtime_copy;
+    range = std::move(range_copy);
+    const int copies = (logic.what()[0] == 'l') + (runtime.what()[1] == 'u') + (range.what()[1] == 'a');
     // Not std::println: on Windows it needs libstdc++exp.a (-lstdc++exp)
-    std::fputs(std::format("threads={} thread_local={} exceptions={} shared_ptr={} c++26={}\n",
-                           threads, total.load(), caught.load(), shared.use_count(),
+    std::fputs(std::format("threads={} thread_local={} exceptions={} copies={} shared_ptr={} "
+                           "c++26={}\n",
+                           threads, total.load(), caught.load(), copies, shared.use_count(),
                            first(*shared, 0))
                    .c_str(),
                stdout);
-    return total == threads * rounds && caught == threads && shared.use_count() == 1 ? 0 : 1;
+    return total == threads * rounds && caught == threads && copies == 3 &&
+                   shared.use_count() == 1
+               ? 0
+               : 1;
 }
 EOF
 }
@@ -141,36 +173,42 @@ cleanup_check() {
     rm -rf "$check_dir"
 }
 
-# check_compiler: builds the test program with no extra flags, checks it, and runs it
+# check_compiler: builds the test program with no extra flags, optimized and not (the
+# copies of the exceptions are inlined only when optimized), checks both, and runs them
 # with Wine if it is in the PATH
 check_compiler() {
-    local output status=0
+    local output status exe
     check_dir="$(mktemp -d)"
     trap cleanup_check EXIT
     cd "$check_dir"
     write_test_program >test.cpp
     "$PREFIX/bin/$TARGET-g++" -std=c++26 -O2 -o test.exe test.cpp
+    "$PREFIX/bin/$TARGET-g++" -std=c++26 -O0 -o test-O0.exe test.cpp
     check_executable test.exe
+    check_executable test-O0.exe
 
     if ! command -v wine >/dev/null; then
-        echo ">> warning: no wine in the PATH: test.exe was not run" >&2
+        echo ">> warning: no wine in the PATH: test.exe and test-O0.exe were not run" >&2
         return
     fi
-    # A prefix of its own, no display so that no window opens, no offer to install
-    # Mono or Gecko, and a time limit should the program hang
-    output="$(env -u DISPLAY -u WAYLAND_DISPLAY -u WINEARCH WINEPREFIX="$check_dir/wine" \
-        WINEDEBUG=-all WINEDLLOVERRIDES="mscoree,mshtml=" timeout 120 wine test.exe \
-        2>wine.log)" || status=$?
-    output="${output//$'\r'/}"
-    if ((status != 0)) || [[ "$output" != "$EXPECTED" ]]; then
-        echo "error: test.exe failed under $(wine --version) (exit status $status), printing:" >&2
-        sed 's/^/  /' <<<"$output" >&2
-        echo "instead of:" >&2
-        echo "  $EXPECTED" >&2
-        tail -n 20 wine.log >&2
-        exit 1
-    fi
-    say "test.exe under $(wine --version): $output"
+    for exe in test.exe test-O0.exe; do
+        # A prefix of its own, no display so that no window opens, no offer to install
+        # Mono or Gecko, and a time limit should the program hang
+        status=0
+        output="$(env -u DISPLAY -u WAYLAND_DISPLAY -u WINEARCH WINEPREFIX="$check_dir/wine" \
+            WINEDEBUG=-all WINEDLLOVERRIDES="mscoree,mshtml=" timeout 120 wine "$exe" \
+            2>wine.log)" || status=$?
+        output="${output//$'\r'/}"
+        if ((status != 0)) || [[ "$output" != "$EXPECTED" ]]; then
+            echo "error: $exe failed under $(wine --version) (exit status $status), printing:" >&2
+            sed 's/^/  /' <<<"$output" >&2
+            echo "instead of:" >&2
+            echo "  $EXPECTED" >&2
+            tail -n 20 wine.log >&2
+            exit 1
+        fi
+        say "$exe under $(wine --version): $output"
+    done
     say "the cross compiler in $PREFIX works"
 }
 
@@ -284,7 +322,71 @@ install() {
     rm -rf "$work"
 }
 
-after_install() { check_compiler; }
+# write_toolchain_file: the CMake toolchain file, next to the compiler. A cross-built Qt
+# kit chain-loads it by its absolute path, and the projects' presets name it. Its paths
+# are relative to the file; the roots of a build's dependencies go to
+# CMAKE_FIND_ROOT_PATH, and nothing of the Linux system is found
+write_toolchain_file() {
+    cat >"$PREFIX/toolchain.cmake" <<'EOF'
+# The CMake toolchain of toolchain-cpp's gcc-mingw component: builds for 64-bit Windows
+# with the GCC of this prefix, found relative to this file (docs/toolchain.md).
+# The roots of the dependencies (the prefixes of the -mingw components) go to
+# CMAKE_FIND_ROOT_PATH; libraries, headers and packages are only searched for there
+# and in the compiler's sysroot, never in the Linux system.
+set(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_SYSTEM_PROCESSOR x86_64)
+
+set(_toolchain_cpp_mingw "${CMAKE_CURRENT_LIST_DIR}/bin/x86_64-w64-mingw32")
+set(CMAKE_C_COMPILER "${_toolchain_cpp_mingw}-gcc")
+set(CMAKE_CXX_COMPILER "${_toolchain_cpp_mingw}-g++")
+set(CMAKE_RC_COMPILER "${_toolchain_cpp_mingw}-windres")
+set(CMAKE_AR "${_toolchain_cpp_mingw}-ar")
+set(CMAKE_RANLIB "${_toolchain_cpp_mingw}-ranlib")
+
+list(APPEND CMAKE_FIND_ROOT_PATH "${CMAKE_CURRENT_LIST_DIR}/x86_64-w64-mingw32")
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+EOF
+    say "the CMake toolchain file is $PREFIX/toolchain.cmake"
+}
+
+# headers_patched: every patch of HEADER_PATCHES is applied to the installed headers
+headers_patched() {
+    local patch_file
+    for patch_file in "${HEADER_PATCHES[@]}"; do
+        patch -p1 -R -s -f --dry-run -d "$HEADERS" <"$patch_file" >/dev/null || return 1
+    done
+}
+
+# patch_headers: applies to the installed headers the patches of HEADER_PATCHES that are
+# not applied yet; one that does not apply cleanly stops the installation
+patch_headers() {
+    local patch_file
+    for patch_file in "${HEADER_PATCHES[@]}"; do
+        if ! patch -p1 -R -s -f --dry-run -d "$HEADERS" <"$patch_file" >/dev/null; then
+            patch -p1 -s -f --dry-run -d "$HEADERS" <"$patch_file" >/dev/null ||
+                die "$patch_file does not apply to $HEADERS"
+            patch -p1 -s -f -d "$HEADERS" <"$patch_file"
+            say "applied ${patch_file#"$TOOLCHAIN_ROOT/"} to $HEADERS"
+        fi
+    done
+}
+
+after_install() {
+    write_toolchain_file
+    patch_headers
+    check_compiler
+}
+
+# An installed compiler that lacks the toolchain file or a header patch gets them,
+# building nothing, and is checked again
+if [[ $# -eq 0 ]] && installed "$PREFIX" && ! is_installed; then
+    [[ -f "$PREFIX/toolchain.cmake" ]] || write_toolchain_file
+    patch_headers
+    check_compiler
+fi
 
 case "${1:-}" in
     --check)

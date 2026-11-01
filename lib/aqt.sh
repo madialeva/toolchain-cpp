@@ -10,6 +10,7 @@ AQT="$SOFTWARE_DIR/aqt-venv/bin/aqt"
 declare -A QT_MODULES=(
     [qttasktree]=lib/cmake/Qt6TaskTree      # a dependency of QmlAssetDownloader
     [qtwebsockets]=lib/cmake/Qt6WebSockets  # guita's persistent channel
+    [qtshadertools]=lib/cmake/Qt6ShaderTools  # qsb, which cross builds of Qt Quick (qt-mingw) need on the host
 )
 
 # has_modules <kit>: whether <kit> has every module of the list

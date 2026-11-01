@@ -17,14 +17,20 @@ keep only their own build scripts and presets. The technical reference is
 |---|---|---|---|
 | `gcc` | GCC 16.2.0, C and C++, built from the GNU sources | `gcc-16.2.0` | the system's C++ compiler |
 | `gcc-mingw` | GCC 16.2.0 cross compiler for 64-bit Windows, with binutils 2.47 and mingw-w64 14.0.0 | `gcc-16.2.0-mingw` | `gcc` |
-| `qt` | Qt 6.12.0 desktop kit, with qttasktree and qtwebsockets | `Qt/6.12.0/gcc_64` | python3 with venv |
+| `qt` | Qt 6.12.0 desktop kit, with qttasktree, qtwebsockets and qtshadertools | `Qt/6.12.0/gcc_64` | python3 with venv |
 | `qt-wasm` | Qt 6.12.0 `wasm_singlethread` kit, emsdk 5.0.5 and Python 3.12 (uv) | `Qt/6.12.0/wasm_singlethread`, `emsdk` | `qt` |
 | `qt-static` | Qt 6.12.0, static, for Linux | `Qt/6.12.0-static` | `gcc` |
+| `qt-mingw` | Qt 6.12.0, static, for 64-bit Windows | `Qt/6.12.0-mingw` | `gcc-mingw`, `qt` |
 | `libpq-static` | libpq of PostgreSQL 18.6, static | `libpq-18.6-static` | `gcc` |
+| `openssl-mingw` | OpenSSL 3.5.9 (LTS), static, for 64-bit Windows | `openssl-3.5.9-mingw` | `gcc-mingw` |
+| `libpq-mingw` | libpq of PostgreSQL 18.6 with OpenSSL, static, for 64-bit Windows | `libpq-18.6-mingw` | `openssl-mingw` |
 | `libpqxx` | libpqxx 8.0.2 | `libpqxx-8.0.2` | `gcc` |
+| `libpqxx-mingw` | libpqxx 8.0.2, for 64-bit Windows | `libpqxx-8.0.2-mingw` | `libpq-mingw` |
 | `cpp-httplib` | cpp-httplib 0.61.0 | `cpp-httplib-0.61.0` | `gcc` |
+| `cpp-httplib-mingw` | cpp-httplib 0.61.0, for 64-bit Windows | `cpp-httplib-0.61.0-mingw` | `gcc-mingw` |
 | `protobuf` | protobuf 36.2 with abseil and `protoc` | `protobuf-36.2` | `gcc` |
 | `protobuf-wasm` | protobuf 36.2 with abseil, for WebAssembly | `protobuf-36.2-wasm` | `qt-wasm` |
+| `protobuf-mingw` | protobuf 36.2 with abseil, for 64-bit Windows | `protobuf-36.2-mingw` | `gcc-mingw` |
 | `buf` | buf 1.74.0 | `buf-1.74.0` | — |
 
 ## Getting started

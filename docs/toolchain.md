@@ -65,10 +65,10 @@ Every download is checked before anything is built or removed (`lib/common.sh`):
 | How | Used for |
 |---|---|
 | Signature, against the GNU keyring (`gnu-keyring.gpg`, downloaded once from ftp.gnu.org) | GCC, binutils |
-| Signature, against a key pinned by its fingerprint: fetched once from keyserver.ubuntu.com, and gpgv's `VALIDSIG` must name that primary key, so a good signature of another key fails | mingw-w64 |
+| Signature, against a key pinned by its fingerprint: fetched once from keyserver.ubuntu.com, and gpgv's `VALIDSIG` must name that primary key, so a good signature of another key fails | mingw-w64 (`.sig`), OpenSSL (`.asc`, made by a subkey of OpenSSL's signing key) |
 | The SHA-256 its server publishes (`<url>.sha256`) | Qt's tarballs, PostgreSQL |
 | The checksums of the release | buf |
-| A shallow clone of the version's tag from the official repository | libpqxx, cpp-httplib, protobuf |
+| A shallow clone of the version's tag from the official repository | libpqxx, cpp-httplib, protobuf (also their `-mingw` builds) |
 
 A download that does not match fails, naming the file to remove.
 
@@ -158,14 +158,16 @@ the key of its release manager, pinned by its fingerprint (§1.4).
   0.5 GB, and the tarballs of binutils and mingw-w64 40 MB more.
 - **The check**, at the end of the installation and on demand with
   `components/gcc-mingw.sh --check`:
-  - it builds with no extra flags a C++26 test program the script carries: four
-    `std::jthread`s that count in a `thread_local` variable and catch an
-    exception, a `shared_ptr` copied into each, and pack indexing;
+  - it builds with no extra flags, with `-O2` and with `-O0`, a C++26 test program
+    the script carries: four `std::jthread`s that count in a `thread_local`
+    variable and catch an exception, copies and moves of `std::logic_error`,
+    `std::runtime_error` and `std::range_error` (inlined only when optimized, hence
+    the second build), a `shared_ptr` copied into each thread, and pack indexing;
   - it fails, naming them, if the program imports any DLL other than
     `KERNEL32.dll`, `ucrtbase.dll` and the UCRT's `api-ms-win-crt-*.dll` (the
     cross `objdump -p`), or carries symbols of the emulated TLS (`__emutls*`, with
     `nm`);
-  - with Wine in the PATH, it runs the program and compares its output and exit
+  - with Wine in the PATH, it runs both builds and compares its output and exit
     status with the expected ones: in a temporary Wine prefix, removed with its
     `wineserver` afterwards, so `~/.wine` is never created or touched; without
     `DISPLAY` or `WAYLAND_DISPLAY`, so no window opens; with Mono and Gecko
@@ -174,6 +176,41 @@ the key of its release manager, pinned by its fingerprint (§1.4).
 
   `--check <executable>` applies the DLL and TLS checks to any executable (the
   TLS one needs its symbols).
+- **The CMake toolchain file**, `software/gcc-16.2.0-mingw/toolchain.cmake`, builds
+  for 64-bit Windows with this compiler: `-DCMAKE_TOOLCHAIN_FILE=` with its path,
+  and the prefixes of the `-mingw` components a build needs in
+  `CMAKE_FIND_ROOT_PATH` (and `CMAKE_PREFIX_PATH`). It names the compiler and its
+  binutils relative to itself, so it moves with the prefix, and it only searches
+  for libraries, headers and packages in those roots and the compiler's sysroot,
+  never in the Linux system (`CMAKE_FIND_ROOT_PATH_MODE_*` `ONLY`, programs
+  `NEVER`). A cross-built Qt kit chain-loads it by its absolute path. It is part
+  of the installation: a compiler that lacks it gets it without building
+  anything.
+- **A patch of libstdc++'s headers** for C++26 exceptions,
+  `patches/gcc-16.2.0-mingw-stdexcept.patch`. In C++26
+  (`__cpp_lib_constexpr_exceptions`), GCC 16's headers define inline, to make them
+  `constexpr`, members of the `<stdexcept>` exceptions that `libstdc++.a` also
+  defines out of line. On ELF the inline copies are weak; on PE/COFF they clash
+  with the archive's, and a program that copies a `std::runtime_error` without
+  optimizing, or emits the vtable of a `std::range_error`, fails to link with
+  multiple definitions (GCC bug 125151, still open in 16.2.0). libstdc++ already
+  marks the same members of the other exceptions `[[gnu::gnu_inline]]`: the inline
+  definition serves constant evaluation and inlining but is never emitted, and a
+  call that is not inlined uses the library's symbol. The patch marks the
+  remaining ones (the constructors and destructor of `range_error`, and the copy
+  and move members of `logic_error` and `runtime_error`) the same way. Every one
+  of those symbols is in `libstdc++.a`, so only the headers change.
+  - The component applies `patches/gcc-<version>-mingw-*.patch` to the installed
+    headers (`x86_64-w64-mingw32/include/c++/<version>`) with `patch -p1` at the
+    end of the installation; a patch that does not apply stops it. Like the
+    toolchain file, the patches are part of the installation (`patch -R
+    --dry-run` tells whether they are applied): a compiler without them gets them
+    without building anything, and is checked again.
+  - Only the cross compiler: the native one, on ELF, does not need it.
+  - A static library built in C++26 with the unpatched headers carries the
+    clashing copies and must be rebuilt. The check's `-O0` build fails to link
+    with the unpatched headers, so a GCC release that still has the bug and no
+    patch does not go unnoticed.
 - **`std::print` needs `-lstdc++exp`** on Windows: it writes to the console
   through `std::__open_terminal` and `std::__write_to_terminal`, which GCC 16 still
   keeps in `libstdc++exp.a`. The test program prints with `std::format` instead.
@@ -198,8 +235,9 @@ of Qt's repository:
     point to it, also after sourcing `emsdk_env.sh`, which clears it.
 
 Both kits carry, beyond aqt's default modules, one list that is the union of what
-the projects need (`lib/aqt.sh`): qttasktree, a dependency of QmlAssetDownloader,
-and qtwebsockets, guita's persistent channel. A kit that lacks one of them is
+the projects need (`lib/aqt.sh`): qttasktree, a dependency of QmlAssetDownloader;
+qtwebsockets, guita's persistent channel; and qtshadertools, whose `qsb` the cross
+build of Qt Quick for Windows (`qt-mingw`) needs on the host. A kit that lacks one of them is
 installed again whole. Requirements: python3 with venv, and git and uv for
 `qt-wasm`. Both take a couple of minutes, most of it downloading.
 
@@ -244,7 +282,41 @@ with their source trees.
   at its peak for the build trees, removed after each module; the kit takes
   1.1 GB, and its tarballs and sources 0.8 GB.
 
-### 2.5 libpq-static
+### 2.5 qt-mingw
+
+Qt 6.12.0, static, for 64-bit Windows, in `software/Qt/6.12.0-mingw`: the kit of
+the projects' self-contained Windows executables, cross-built with `gcc-mingw`
+from the tarballs of `qt-static`, with the desktop kit (`qt`) as its host
+(`QT_HOST_PATH`).
+
+- **One kit for every project**, with the union of what they use, as
+  `qt-static`: qtbase with Qt SQL and Qt's own SQLite, qtshadertools, qtsvg,
+  qtdeclarative and qtwebsockets. The Linguist tools come from the host. A kit
+  that lacks a module is removed and built again whole.
+- **qtbase** is configured with `gcc-mingw`'s toolchain file and
+  `QT_QMAKE_TARGET_MKSPEC=win32-g++`. Windows has no system libraries for Qt's
+  third-party code, so the kit carries Qt's own copies of all of them (zlib,
+  PCRE2, HarfBuzz, libpng, libjpeg, freetype, double-conversion, SQLite). TLS is
+  Windows' own, Schannel, without OpenSSL. Desktop OpenGL besides Direct3D; no
+  Vulkan, ICU, D-Bus, GLib, Widgets, printing, GSSAPI, Brotli, zstd or libproxy.
+- **The other modules** are configured with the kit's `qt-configure-module`,
+  whose `qt.toolchain.cmake` chain-loads `gcc-mingw`'s toolchain file and adds
+  the kit to the search roots.
+- **Using it:** `-DCMAKE_TOOLCHAIN_FILE=software/Qt/6.12.0-mingw/lib/cmake/Qt6/qt.toolchain.cmake`
+  and `-DQT_HOST_PATH=software/Qt/6.12.0/gcc_64` (without `..` in the path), and
+  `qt_import_plugins` with `Qt6::QWindowsIntegrationPlugin` (and
+  `Qt6::QSchannelBackendPlugin` for `wss://`). A minimal Qt Quick application is
+  46 MB without symbols and imports only DLLs of Windows.
+- **In Wine** (10.6) such an application aborts on
+  `mscms.dll.WcsCreateIccProfile`, which Qt calls when it reads the screen's
+  colour profile and Wine does not implement; Windows has had it since Vista.
+  Without the sRGB profile of the Wine prefix
+  (`windows/system32/spool/drivers/color`) it starts, and draws with Direct3D 11.
+- **Requirements and cost:** those of `qt-static` without the X11 packages. It
+  takes about half an hour with 12 cores (26 minutes on the development
+  machine), with close to 40 GB of disk at its peak; the kit takes 0.7 GB.
+
+### 2.6 libpq-static
 
 libpq of PostgreSQL 18.6, static, in `software/libpq-18.6-static`: the libpq of
 the projects' self-contained executables, built with the native GCC. The tarball
@@ -261,7 +333,7 @@ is checked against the SHA-256 that ftp.postgresql.org publishes.
 - **Requirements:** make, bzip2 and the development packages of OpenSSL. It takes
   about a minute.
 
-### 2.6 Libraries
+### 2.7 Libraries
 
 Built with the native GCC in C++26, from the official repositories at the tag of
 their version (`software/src/<name>-<version>`), each in its own prefix:
@@ -288,6 +360,58 @@ their version (`software/src/<name>-<version>`), each in its own prefix:
 They need CMake 3.25+, Ninja and git. Together they take about six minutes with
 12 cores, most of it protobuf and abseil, and their build trees take little disk.
 
+### 2.8 Components for Windows
+
+The libraries of the projects' Windows builds, cross-built with `gcc-mingw`, static,
+with no DLL in their prefixes, from the same sources as their Linux components (the
+compiler is §2.2, and Qt §2.5):
+
+- **`openssl-mingw`:** OpenSSL 3.5.9, of the 3.5 LTS branch (supported until April
+  2030), in `software/openssl-3.5.9-mingw`: the TLS of `libpq-mingw`, since Qt for
+  Windows uses Schannel. The release tarball of GitHub, checked against its `.asc`
+  (§1.4). `Configure mingw64 no-shared no-module no-tests no-docs` with the cross
+  compiler's prefix; `no-module` keeps the `legacy` provider out, which would be a
+  DLL. Only the libraries and headers are installed (`make install_sw`).
+- **`libpq-mingw`:** libpq of PostgreSQL 18.6, in `software/libpq-18.6-mingw`, from
+  the tarball of `libpq-static`: its client part, with `openssl-mingw`
+  (`--with-ssl=openssl`) and `--without-icu --without-readline --without-zlib`. On
+  mingw PostgreSQL only installs `libpq.dll` and its import library (named
+  `libpq.a`), so the component makes the static `libpq.a` itself:
+  - from the objects of `src/interfaces/libpq`, but those of the DLL (`*_shlib.o`)
+    and its version resource (`win32ver.o`), which would clash with the
+    executable's; the DLL and the import library are removed;
+  - libpq's own pthread functions for Windows (`pthread-win32.c`), whose
+    `pthread_mutex_t` is not winpthreads', are renamed `pq_pthread_*` in all of
+    its objects (`objcopy --redefine-syms`): every C++ program links winpthreads,
+    and the names would clash;
+  - from `libpgcommon_shlib.a` go `exec_shlib.o` and `restricted_token_shlib.o`,
+    which libpq does not use: `exec.c` defines `_dowildcard`, which mingw's
+    `crt2.o` looks for, so the linker would pull it in, and with it code that
+    needs the server's `palloc`.
+
+  libpq needs the `_shlib` variants of `libpgcommon` and `libpgport`: the frontend
+  one uses private encoding names and leaves `pg_encoding_to_char` undefined.
+- **`protobuf-mingw`:** protobuf 36.2 with abseil, in `software/protobuf-36.2-mingw`,
+  without `protoc`: the native one generates the code, as for `protobuf-wasm`.
+- **`libpqxx-mingw`:** libpqxx 8.0.2, in `software/libpqxx-8.0.2-mingw`, against
+  `libpq-mingw`.
+- **`cpp-httplib-mingw`:** cpp-httplib 0.61.0, header-only, in
+  `software/cpp-httplib-0.61.0-mingw`, without zlib, TLS, Brotli or zstd: on
+  Windows the projects embed the backend, which opens no port.
+
+The three last are built with `cmake_mingw` (`lib/common.sh`): the toolchain file,
+Ninja, Release and C++26. A static libpq does not carry its dependencies, so a
+project links after it `libpgcommon_shlib.a`, `libpgport_shlib.a`, `libssl.a`,
+`libcrypto.a` (`OPENSSL_USE_STATIC_LIBS`) and the Windows libraries `ws2_32`,
+`secur32` and `crypt32`; mingw's GCC already links `advapi32`, `shell32`, `user32`
+and `kernel32`. With libpqxx, they go to `PostgreSQL::PostgreSQL`'s
+`INTERFACE_LINK_LIBRARIES`. An executable built with the five imports only DLLs of
+Windows (abseil adds `dbghelp.dll`).
+
+They need make, perl, bzip2, CMake 3.25+, Ninja and git. With 12 cores OpenSSL takes
+about a minute and a half, libpq under a minute, and the three last about two
+minutes, most of it abseil; the five prefixes take 61 MB.
+
 ## 3. Using it from a project
 
 - **Where:** toolchain-cpp is cloned next to the project (`~/src/toolchain-cpp`
@@ -304,6 +428,13 @@ They need CMake 3.25+, Ninja and git. Together they take about six minutes with
 - **Scripts:** the project's scripts take the installation directory from
   `SOFTWARE_DIR`, by default `$ROOT/../toolchain-cpp/software`, `$ROOT` being the
   project's root.
+- **Windows:** `-DCMAKE_TOOLCHAIN_FILE=` with
+  `${sourceParentDir}/toolchain-cpp/software/Qt/6.12.0-mingw/lib/cmake/Qt6/qt.toolchain.cmake`
+  (which chain-loads `gcc-mingw`'s toolchain file) and `QT_HOST_PATH` with the
+  desktop kit, or `software/gcc-16.2.0-mingw/toolchain.cmake` without Qt; the
+  prefixes of the `-mingw` components the project needs in `CMAKE_FIND_ROOT_PATH`
+  and `CMAKE_PREFIX_PATH`; and the native `protoc` for the contract. The libraries
+  libpq needs after it are in §2.8.
 - **CI (GitHub Actions):** inside the official GCC image (`gcc:16.2.0-trixie`),
   the project and toolchain-cpp are checked out side by side, toolchain-cpp at the
   pinned tag. `software/gcc-16.2.0` is a link to the image's GCC (`/usr/local`),

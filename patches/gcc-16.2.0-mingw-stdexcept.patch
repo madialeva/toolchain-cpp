@@ -1,0 +1,66 @@
+libstdc++ of GCC 16.2.0 for mingw, C++26: std::range_error and the copy and move
+members of std::logic_error and std::runtime_error are defined inline in the headers
+when __cpp_lib_constexpr_exceptions >= 202502L, and also out of line in libstdc++.a
+(stdexcept.cc, cow-stdexcept.cc, cxx11-stdexcept.cc). On ELF the inline copies are
+weak; on PE/COFF they clash with the archive's and the link fails with multiple
+definitions (GCC bug 125151, open). The other exception classes already mark these
+members [[gnu::gnu_inline]], so that a program calls the library's definition and
+never emits its own; this marks the remaining ones the same way. Applied to the
+installed headers (include/c++/16.2.0) by components/gcc-mingw.sh, with patch -p1.
+
+--- a/bits/stdexcept_except.h
++++ b/bits/stdexcept_except.h
+@@ -268,9 +268,13 @@
+     logic_error(const char* __arg) _GLIBCXX_TXN_SAFE
+     : _M_msg(__arg) {}
+ 
++    [[__gnu__::__gnu_inline__]]
+     constexpr logic_error(logic_error&& __arg) noexcept = default;
++    [[__gnu__::__gnu_inline__]]
+     constexpr logic_error& operator=(logic_error&& __arg) noexcept = default;
++    [[__gnu__::__gnu_inline__]]
+     constexpr logic_error(const logic_error&) noexcept = default;
++    [[__gnu__::__gnu_inline__]]
+     constexpr logic_error& operator=(const logic_error&) noexcept = default;
+ 
+     [[__gnu__::__gnu_inline__]]
+@@ -466,10 +470,14 @@
+     runtime_error(const char* __arg) _GLIBCXX_TXN_SAFE
+     : _M_msg(__arg) {}
+ 
++    [[__gnu__::__gnu_inline__]]
+     constexpr runtime_error(runtime_error&&) noexcept = default;
++    [[__gnu__::__gnu_inline__]]
+     constexpr runtime_error& operator=(runtime_error&&) noexcept = default;
++    [[__gnu__::__gnu_inline__]]
+     constexpr runtime_error(const runtime_error&) noexcept = default;
+-    runtime_error& operator=(const runtime_error&) noexcept = default;
++    [[__gnu__::__gnu_inline__]]
++    inline runtime_error& operator=(const runtime_error&) noexcept = default;
+ 
+     [[__gnu__::__gnu_inline__]]
+     constexpr inline virtual ~runtime_error() _GLIBCXX_TXN_SAFE_DYN noexcept
+--- a/stdexcept
++++ b/stdexcept
+@@ -55,15 +55,18 @@
+   {
+   public:
+ #if __cpp_lib_constexpr_exceptions >= 202502L
+-    constexpr explicit range_error(const string& __arg) _GLIBCXX_TXN_SAFE
++    [[__gnu__::__gnu_inline__]]
++    constexpr inline explicit range_error(const string& __arg) _GLIBCXX_TXN_SAFE
+     : runtime_error(__arg) { }
+-    constexpr explicit range_error(const char* __arg) _GLIBCXX_TXN_SAFE
++    [[__gnu__::__gnu_inline__]]
++    constexpr inline explicit range_error(const char* __arg) _GLIBCXX_TXN_SAFE
+     : runtime_error(__arg) { }
+     constexpr range_error(const range_error&) = default;
+     constexpr range_error& operator=(const range_error&) = default;
+     constexpr range_error(range_error&&) = default;
+     constexpr range_error& operator=(range_error&&) = default;
+-    constexpr virtual ~range_error() noexcept { }
++    [[__gnu__::__gnu_inline__]]
++    constexpr inline virtual ~range_error() noexcept { }
+ #else
+     explicit range_error(const string& __arg) _GLIBCXX_TXN_SAFE;
+ #if __cplusplus >= 201103L
