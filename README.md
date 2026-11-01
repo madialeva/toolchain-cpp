@@ -22,10 +22,15 @@ keep only their own build scripts and presets. The technical reference is
 | `qt-static` | Qt 6.12.0, static, for Linux | `Qt/6.12.0-static` | `gcc` |
 | `qt-mingw` | Qt 6.12.0, static, for 64-bit Windows | `Qt/6.12.0-mingw` | `gcc-mingw`, `qt` |
 | `libpq-static` | libpq of PostgreSQL 18.6, static | `libpq-18.6-static` | `gcc` |
+| `openssl-mingw` | OpenSSL 3.5.9 (LTS), static, for 64-bit Windows | `openssl-3.5.9-mingw` | `gcc-mingw` |
+| `libpq-mingw` | libpq of PostgreSQL 18.6 with OpenSSL, static, for 64-bit Windows | `libpq-18.6-mingw` | `openssl-mingw` |
 | `libpqxx` | libpqxx 8.0.2 | `libpqxx-8.0.2` | `gcc` |
+| `libpqxx-mingw` | libpqxx 8.0.2, for 64-bit Windows | `libpqxx-8.0.2-mingw` | `libpq-mingw` |
 | `cpp-httplib` | cpp-httplib 0.61.0 | `cpp-httplib-0.61.0` | `gcc` |
+| `cpp-httplib-mingw` | cpp-httplib 0.61.0, for 64-bit Windows | `cpp-httplib-0.61.0-mingw` | `gcc-mingw` |
 | `protobuf` | protobuf 36.2 with abseil and `protoc` | `protobuf-36.2` | `gcc` |
 | `protobuf-wasm` | protobuf 36.2 with abseil, for WebAssembly | `protobuf-36.2-wasm` | `qt-wasm` |
+| `protobuf-mingw` | protobuf 36.2 with abseil, for 64-bit Windows | `protobuf-36.2-mingw` | `gcc-mingw` |
 | `buf` | buf 1.74.0 | `buf-1.74.0` | — |
 
 ## Getting started

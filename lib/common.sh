@@ -111,6 +111,28 @@ cmake_native() {
     rm -rf "$build"
 }
 
+# ---- The cross compiler -------------------------------------------------------------
+
+# MINGW_TOOLCHAIN: the CMake toolchain file of the gcc-mingw component
+MINGW_DIR="$SOFTWARE_DIR/gcc-$GCC_VERSION-mingw"
+MINGW_TOOLCHAIN="$MINGW_DIR/toolchain.cmake"
+
+# cmake_mingw <source> <build> <prefix> [cmake options...]: configures, builds and
+# installs a CMake project for Windows with the cross compiler's toolchain file, in
+# C++26, from an empty build directory. The roots of other -mingw components it needs
+# go in -DCMAKE_FIND_ROOT_PATH among the options
+cmake_mingw() {
+    local source="$1" build="$2" prefix="$3"
+    shift 3
+    rm -rf "$build"
+    cmake -S "$source" -B "$build" -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$prefix" \
+        -DCMAKE_TOOLCHAIN_FILE="$MINGW_TOOLCHAIN" -DCMAKE_CXX_STANDARD=26 "$@"
+    cmake --build "$build" -j"$(nproc)"
+    cmake --install "$build"
+    rm -rf "$build"
+}
+
 # ---- Downloads, checked before anything is built or removed --------------------------
 
 # download <url> <file>: downloads <url> into <file> unless it is there
@@ -133,20 +155,22 @@ check_sha256() {
         die "checksum mismatch for $file: remove it and run this again"
 }
 
-# download_signed <url> <file>: downloads <url> into <file> unless it is there, and its
-# signature <url>.sig into <file>.sig every time
+# download_signed <url> <file> [<extension>]: downloads <url> into <file> unless it is
+# there, and its signature (<url>.sig, or the extension given, such as .asc) into
+# <file> with that extension, every time
 download_signed() {
-    local url="$1" file="$2"
+    local url="$1" file="$2" ext="${3:-.sig}"
     download "$url" "$file"
-    curl -fsSL -o "$file.sig" "$url.sig" || die "cannot download $url.sig"
+    curl -fsSL -o "$file$ext" "$url$ext" || die "cannot download $url$ext"
 }
 
-# check_signature <keyring> <file> [<fingerprint>]: checks <file>.sig with the keys of
-# <keyring> and, given a fingerprint, that the primary key of the key that signed is
-# that one (the last field of gpgv's VALIDSIG): a good signature of another key fails
+# check_signature <keyring> <file> [<fingerprint> [<extension>]]: checks the signature of
+# <file> (<file>.sig, or the extension given) with the keys of <keyring> and, given a
+# fingerprint, that the primary key of the key that signed is that one (the last field
+# of gpgv's VALIDSIG): a good signature of another key fails
 check_signature() {
-    local keyring="$1" file="$2" key="${3:-}" status
-    if status="$(gpgv --status-fd 1 --keyring "$keyring" "$file.sig" "$file")"; then
+    local keyring="$1" file="$2" key="${3:-}" ext="${4:-.sig}" status
+    if status="$(gpgv --status-fd 1 --keyring "$keyring" "$file$ext" "$file")"; then
         [[ -z "$key" ]] && return
         awk -v key="$key" '$2 == "VALIDSIG" && $NF == key {found = 1} END {exit !found}' \
             <<<"$status" && return

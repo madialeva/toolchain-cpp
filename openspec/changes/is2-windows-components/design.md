@@ -99,6 +99,12 @@ libpq de PostgreSQL 18.6 en `software/libpq-18.6-mingw`, desde el mismo tarball 
   - quedan `libpgcommon_shlib.a`, `libpgport_shlib.a`, las cabeceras y `pg_config.h`.
 - **Las librerías de Windows** que necesita para enlazar (`ws2_32`, `secur32`, `crypt32`, ...) se documentan para los proyectos.
 
+Ajustes al implementar:
+- **`OpenSSL` sin módulos (`no-module`):** sin esa opción instala `ossl-modules/legacy.dll`.
+- **De `src/interfaces/libpq` quedan fuera** `fe-auth-oauth_shlib.o` y los demás `*_shlib.o`, que son de la DLL, y `win32ver.o`, su recurso de versión, que chocaría con el del ejecutable.
+- **libpq necesita la variante `_shlib` de `libpgcommon` y `libpgport`:** la de frontend usa nombres de codificación privados y deja `pg_encoding_to_char` sin definir. De `libpgcommon_shlib.a` se borran `exec_shlib.o` y `restricted_token_shlib.o`. `exec.c` define `_dowildcard`, que el `crt2.o` de mingw busca, así que el enlazador lo saca del archivo y con él código que necesita el `palloc` del servidor. libpq no usa ninguno de los dos.
+- **libpq trae sus propias funciones de hilos para Windows** (`pthread-win32.c`: `pthread_self`, `pthread_mutex_lock`, ...), con un `pthread_mutex_t` propio (un `CRITICAL_SECTION`). Un programa en C++ enlaza también winpthreads, y las dos definiciones chocan. Quitar el objeto de libpq no vale: sus llamadas irían a winpthreads con otro tipo de mutex. Con `objcopy --redefine-syms` se renombran con el prefijo `pq_` en todos los objetos de libpq, en las definiciones y en las llamadas, y el componente falla si queda algún `pthread_` en `libpq.a`. La prueba en C de la tarea 3.1 no lo vio porque no enlaza winpthreads.
+
 ### 6. `protobuf-mingw`, `libpqxx-mingw` y `cpp-httplib-mingw`
 
 Desde los mismos clones que sus componentes nativos, en directorios de compilación aparte, con el fichero de toolchain, en Release y C++26:
@@ -126,11 +132,35 @@ Necesitan `gcc-mingw`, y libpqxx además `libpq-mingw`. `lib/common.sh` gana una
 ### 8. Documentación y versión
 
 - **`docs/toolchain.md`:**
-  - en la sección de `gcc-mingw`, el fichero de toolchain y cómo se usa;
+  - en la sección de `gcc-mingw`, el fichero de toolchain y cómo se usa, y el parche de las cabeceras (decisión 9);
   - en Componentes, una sección para Windows con los seis nuevos, sus opciones, las librerías de Windows que piden al enlazar, el tiempo y el disco;
   - en el uso desde un proyecto, el build para Windows.
 - **README:** los seis componentes en la tabla.
 - **CHANGELOG:** `Added` en `[Unreleased]`, que será la 0.2.0.
+
+### 9. Las excepciones de C++26 en mingw: un parche de las cabeceras de libstdc++
+
+Apareció al enlazar el programa de prueba de la tarea 3.2. En C++26 (`__cpp_lib_constexpr_exceptions` 202502), las cabeceras de libstdc++ de GCC 16 definen en línea, para que sean `constexpr`, miembros de las excepciones de `<stdexcept>` que `libstdc++.a` también define fuera de línea (`stdexcept.cc`, `cow-stdexcept.cc`, `cxx11-stdexcept.cc`). En ELF las copias en línea son débiles y no pasa nada. En PE/COFF chocan con las del archivo y el enlace falla con definiciones múltiples:
+- el destructor de `std::range_error` en cuanto se emite su vtable, también optimizando (abseil lo hace);
+- sin optimizar, además, los constructores de `std::range_error` y la copia y el movimiento de `std::logic_error` y `std::runtime_error`.
+
+Es el bug 125151 de GCC, abierto desde mayo de 2026 y sin arreglar en 16.2.0. Afecta a cualquier proyecto en C++26 para Windows, guita incluido, que lanza `std::invalid_argument`.
+
+libstdc++ ya resuelve lo mismo en las demás excepciones con `[[__gnu__::__gnu_inline__]]`: la definición en línea sirve para la evaluación constante y para insertarla, pero nunca se emite, y una llamada que no se inserta usa el símbolo de la librería. Al upstream se le escaparon esos miembros. `patches/gcc-16.2.0-mingw-stdexcept.patch` les pone el mismo atributo (y `inline` a la asignación por copia de `runtime_error`, que no es `constexpr` y sin él lo ignora). Todos esos símbolos están en `libstdc++.a`, así que basta con las cabeceras y la librería no se recompila.
+
+- **`gcc-mingw.sh` aplica los parches de `patches/gcc-<versión>-mingw-*.patch`** a las cabeceras instaladas, con `patch -p1`, al final de la instalación. Como con el fichero de toolchain, `is_installed` exige que estén aplicados (lo comprueba `patch -R --dry-run`), y un compilador ya instalado sin ellos los recibe sin recompilar y se comprueba de nuevo. Un parche que no aplica para la instalación.
+- **La comprobación del compilador** copia, mueve y asigna esas tres excepciones, y compila el programa también sin optimizar. Con las cabeceras sin parchear, falla el enlace en los dos niveles. Así, si se sube de versión GCC y el bug sigue sin parche, se ve.
+- **Solo el compilador cruzado.** El nativo no lo necesita (ELF), y el CI usa la imagen `gcc:16.2.0-trixie`, que no se parchea.
+- **Las librerías compiladas antes del parche** llevan las copias que chocan. De los componentes, solo `libabsl_throw_delegate.a` (abseil, en `protobuf-mingw`), que se recompiló. Qt, libpqxx y cpp-httplib no tenían ninguna.
+
+Comprobado con un programa que construye, copia, mueve, asigna y lanza las nueve excepciones de `<stdexcept>` y provoca una de `libstdc++.a` (`vector::at`): en C++23 y C++26, con `-O0`, `-O2` y `-Os`, enlaza y termina bien en Wine. Una función `consteval` que crea, copia y lanza una `std::range_error` se sigue evaluando.
+
+Alternativas descartadas:
+- **`-D__cpp_lib_constexpr_exceptions=0`,** el apaño del informe. Cambia el comportamiento de la librería en cada proyecto y quita las excepciones `constexpr`.
+- **Debilitar los símbolos de `libstdc++.a` con `objcopy --weaken`.** Enlaza, pero en PE los símbolos débiles son externos débiles de COFF: el ejecutable salta a una dirección nula al arrancar, también en C++23.
+- **`-Wl,--allow-multiple-definition`** en los proyectos. Oculta cualquier otro choque de verdad.
+- **Compilar en C++23 lo que lanza excepciones.** Abseil y los proyectos son C++26.
+- **Recompilar GCC con el parche en las fuentes.** El resultado es el mismo, porque solo cambian cabeceras, y costaría un cuarto de hora y rehacer todos los componentes `-mingw`.
 
 ## Risks / Trade-offs
 
@@ -139,6 +169,7 @@ Necesitan `gcc-mingw`, y libpqxx además `libpq-mingw`. `lib/common.sh` gana una
 - [Qt Quick en Wine puede no dibujar con Direct3D 11] → Wine solo es la prueba local, y se puede probar con `QSG_RHI_BACKEND=opengl`. La referencia es el Windows real, en guita#29.
 - [El kit de Windows y su disco] → Como `qt-static`, puede acercarse a 40 GB en el pico. Se mide y se documenta.
 - [Los kits de aqt se reinstalan por qtshadertools] → Una vez, en local y en el CI de quien fije la 0.2.0.
+- [Un parche propio en las cabeceras de GCC (decisión 9)] → Es pequeño, copia lo que libstdc++ ya hace con las demás excepciones, y va con la versión de GCC en el nombre. Cuando GCC arregle el bug 125151, se quita en la versión que lo traiga; si se sube GCC sin él y el bug sigue, la comprobación del compilador falla.
 
 ## Migration Plan
 

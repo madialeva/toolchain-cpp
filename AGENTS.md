@@ -55,6 +55,7 @@ install.sh            installs components by name, with what they need
 versions.sh           the version of every component
 components/           one script per component
 lib/common.sh         functions common to the components
+patches/              patches the components apply, named after what they patch
 scripts/              tools of the repository (check-version.sh)
 docs/toolchain.md     the technical reference
 software/             what the components download, build and install (ignored)

@@ -14,13 +14,15 @@ set -euo pipefail
 source "$(dirname "$0")/lib/common.sh"
 
 # The components, in the order they are installed
-COMPONENTS=(gcc gcc-mingw qt qt-wasm qt-static qt-mingw libpq-static libpqxx cpp-httplib
-    protobuf protobuf-wasm buf)
+COMPONENTS=(gcc gcc-mingw qt qt-wasm qt-static qt-mingw libpq-static openssl-mingw libpq-mingw
+    libpqxx libpqxx-mingw cpp-httplib cpp-httplib-mingw protobuf protobuf-wasm protobuf-mingw
+    buf)
 # The components each one needs
 declare -A NEEDS=(
     [gcc-mingw]=gcc [qt-wasm]=qt [qt-static]=gcc [libpq-static]=gcc [libpqxx]=gcc
     [cpp-httplib]=gcc [protobuf]=gcc [protobuf-wasm]=qt-wasm
-    [qt-mingw]="gcc-mingw qt"
+    [qt-mingw]="gcc-mingw qt" [openssl-mingw]=gcc-mingw [libpq-mingw]=openssl-mingw
+    [libpqxx-mingw]=libpq-mingw [cpp-httplib-mingw]=gcc-mingw [protobuf-mingw]=gcc-mingw
 )
 # The version each one installs
 declare -A VERSIONS=(
@@ -28,7 +30,9 @@ declare -A VERSIONS=(
     [qt-static]=$QT_VERSION [libpq-static]=$POSTGRESQL_VERSION [libpqxx]=$LIBPQXX_VERSION
     [cpp-httplib]=$HTTPLIB_VERSION [protobuf]=$PROTOBUF_VERSION
     [protobuf-wasm]=$PROTOBUF_VERSION [buf]=$BUF_VERSION
-    [qt-mingw]=$QT_VERSION
+    [qt-mingw]=$QT_VERSION [openssl-mingw]=$OPENSSL_VERSION [libpq-mingw]=$POSTGRESQL_VERSION
+    [libpqxx-mingw]=$LIBPQXX_VERSION [cpp-httplib-mingw]=$HTTPLIB_VERSION
+    [protobuf-mingw]=$PROTOBUF_VERSION
 )
 
 usage() {
@@ -61,7 +65,7 @@ case "${1:-}" in
         for component in "${COMPONENTS[@]}"; do
             status="not installed"
             is_component_installed "$component" && status=installed
-            printf '%-14s %-8s %s\n' "$component" "${VERSIONS[$component]}" "$status"
+            printf '%-17s %-8s %s\n' "$component" "${VERSIONS[$component]}" "$status"
         done
         exit 0
         ;;
