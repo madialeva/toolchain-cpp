@@ -74,6 +74,14 @@ En `software/Qt/6.12.0-mingw`, desde los mismos tarballs de `software/src/qt-6.1
 - **Los demás módulos,** con el `qt-configure-module` del prefijo.
 - **El riesgo principal** es GCC 16 con el TLS nativo de Windows, que nadie ha publicado con Qt. Se compila primero qtbase (tareas).
 
+Ajustes y resultados al implementar:
+- **GCC 16 y el TLS nativo no dieron ningún problema.** qtbase compiló en 6 minutos, y el kit entero en 26.
+- **`configure` aceptó las opciones tal cual.** El resumen da Schannel sin OpenSSL, las copias de Qt de todas las librerías, OpenGL de escritorio, Direct2D y DirectWrite, y nada de X11 ni Wayland. Solo avisa de que mingw-w64 no trae cppwinrt, que Qt usa para algunas funciones opcionales de Windows.
+- **Los demás módulos se configuran sin el fichero de toolchain del compilador.** `qt-configure-module` usa el `qt.toolchain.cmake` del kit, que encadena el del compilador y añade el kit a las raíces de búsqueda. Pasarle el del compilador, como al principio, le ocultaba el kit a `find_package(Qt6)`.
+- **Una aplicación Qt Quick mínima** pesa 46 MB sin símbolos y solo importa DLLs de Windows (Direct3D 9, 11 y 12, DXGI, DirectWrite, OpenGL, Winsock, Schannel, y los conjuntos de API del UCRT y de WinRT). En Wine se dibuja con Direct3D 11.
+- **Wine 10.6 no implementa `mscms.dll.WcsCreateIccProfile`**, que Qt llama al leer el perfil de color de la pantalla: la aplicación se aborta. Windows la tiene desde Vista. Para la prueba en Wine se quita el perfil sRGB del prefijo temporal (`windows/system32/spool/drivers/color`).
+- **Disco:** cerca de 40 GB en el pico, como `qt-static`; el kit ocupa 0,7 GB.
+
 ### 4. `openssl-mingw`
 
 OpenSSL `OPENSSL_VERSION` (3.5.9, nuevo en `versions.sh`) en `software/openssl-3.5.9-mingw`. Necesita `gcc-mingw`.

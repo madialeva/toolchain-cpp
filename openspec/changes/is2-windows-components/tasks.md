@@ -11,11 +11,11 @@
 
 ## 2. Qt para Windows
 
-- [ ] 2.1 Crear `components/qt-mingw.sh` con su fila en `install.sh` (decisión 3). Contrastar las opciones con `configure -list-features` de qtbase configurado para Windows, y compilar primero qtbase solo. Instalarlo, medir el tiempo y el disco, y anotar en la decisión 3 las opciones ajustadas. Verificar:
+- [x] 2.1 Crear `components/qt-mingw.sh` con su fila en `install.sh` (decisión 3). Contrastar las opciones con `configure -list-features` de qtbase configurado para Windows, y compilar primero qtbase solo. Instalarlo, medir el tiempo y el disco, y anotar en la decisión 3 las opciones ajustadas. Verificar:
   - que tiene los cinco módulos, `plugins/platforms/libqwindows.a`, `plugins/tls/libqschannelbackend.a` y `plugins/sqldrivers/libqsqlite.a`, y ninguna DLL;
   - que su `qt.toolchain.cmake` encadena `software/gcc-16.2.0-mingw/toolchain.cmake`;
   - que una aplicación Qt Quick mínima, compilada en `tmp/` con el kit, solo importa DLLs de Windows y, con Wine en el Xvfb `:99`, muestra su ventana. Anotar si hizo falta otro backend de RHI.
-- [ ] 2.2 Documentar `qt-mingw` en `docs/toolchain.md` y el README. Verificar que coincide con el script.
+- [x] 2.2 Documentar `qt-mingw` en `docs/toolchain.md` y el README. Verificar que coincide con el script.
 
 ## 3. OpenSSL, libpq y las librerías del backend para Windows
 

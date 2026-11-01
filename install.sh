@@ -14,12 +14,13 @@ set -euo pipefail
 source "$(dirname "$0")/lib/common.sh"
 
 # The components, in the order they are installed
-COMPONENTS=(gcc gcc-mingw qt qt-wasm qt-static libpq-static libpqxx cpp-httplib protobuf
-    protobuf-wasm buf)
+COMPONENTS=(gcc gcc-mingw qt qt-wasm qt-static qt-mingw libpq-static libpqxx cpp-httplib
+    protobuf protobuf-wasm buf)
 # The components each one needs
 declare -A NEEDS=(
     [gcc-mingw]=gcc [qt-wasm]=qt [qt-static]=gcc [libpq-static]=gcc [libpqxx]=gcc
     [cpp-httplib]=gcc [protobuf]=gcc [protobuf-wasm]=qt-wasm
+    [qt-mingw]="gcc-mingw qt"
 )
 # The version each one installs
 declare -A VERSIONS=(
@@ -27,6 +28,7 @@ declare -A VERSIONS=(
     [qt-static]=$QT_VERSION [libpq-static]=$POSTGRESQL_VERSION [libpqxx]=$LIBPQXX_VERSION
     [cpp-httplib]=$HTTPLIB_VERSION [protobuf]=$PROTOBUF_VERSION
     [protobuf-wasm]=$PROTOBUF_VERSION [buf]=$BUF_VERSION
+    [qt-mingw]=$QT_VERSION
 )
 
 usage() {

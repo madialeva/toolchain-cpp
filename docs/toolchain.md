@@ -255,7 +255,41 @@ with their source trees.
   at its peak for the build trees, removed after each module; the kit takes
   1.1 GB, and its tarballs and sources 0.8 GB.
 
-### 2.5 libpq-static
+### 2.5 qt-mingw
+
+Qt 6.12.0, static, for 64-bit Windows, in `software/Qt/6.12.0-mingw`: the kit of
+the projects' self-contained Windows executables, cross-built with `gcc-mingw`
+from the tarballs of `qt-static`, with the desktop kit (`qt`) as its host
+(`QT_HOST_PATH`).
+
+- **One kit for every project**, with the union of what they use, as
+  `qt-static`: qtbase with Qt SQL and Qt's own SQLite, qtshadertools, qtsvg,
+  qtdeclarative and qtwebsockets. The Linguist tools come from the host. A kit
+  that lacks a module is removed and built again whole.
+- **qtbase** is configured with `gcc-mingw`'s toolchain file and
+  `QT_QMAKE_TARGET_MKSPEC=win32-g++`. Windows has no system libraries for Qt's
+  third-party code, so the kit carries Qt's own copies of all of them (zlib,
+  PCRE2, HarfBuzz, libpng, libjpeg, freetype, double-conversion, SQLite). TLS is
+  Windows' own, Schannel, without OpenSSL. Desktop OpenGL besides Direct3D; no
+  Vulkan, ICU, D-Bus, GLib, Widgets, printing, GSSAPI, Brotli, zstd or libproxy.
+- **The other modules** are configured with the kit's `qt-configure-module`,
+  whose `qt.toolchain.cmake` chain-loads `gcc-mingw`'s toolchain file and adds
+  the kit to the search roots.
+- **Using it:** `-DCMAKE_TOOLCHAIN_FILE=software/Qt/6.12.0-mingw/lib/cmake/Qt6/qt.toolchain.cmake`
+  and `-DQT_HOST_PATH=software/Qt/6.12.0/gcc_64` (without `..` in the path), and
+  `qt_import_plugins` with `Qt6::QWindowsIntegrationPlugin` (and
+  `Qt6::QSchannelBackendPlugin` for `wss://`). A minimal Qt Quick application is
+  46 MB without symbols and imports only DLLs of Windows.
+- **In Wine** (10.6) such an application aborts on
+  `mscms.dll.WcsCreateIccProfile`, which Qt calls when it reads the screen's
+  colour profile and Wine does not implement; Windows has had it since Vista.
+  Without the sRGB profile of the Wine prefix
+  (`windows/system32/spool/drivers/color`) it starts, and draws with Direct3D 11.
+- **Requirements and cost:** those of `qt-static` without the X11 packages. It
+  takes about half an hour with 12 cores (26 minutes on the development
+  machine), with close to 40 GB of disk at its peak; the kit takes 0.7 GB.
+
+### 2.6 libpq-static
 
 libpq of PostgreSQL 18.6, static, in `software/libpq-18.6-static`: the libpq of
 the projects' self-contained executables, built with the native GCC. The tarball
@@ -272,7 +306,7 @@ is checked against the SHA-256 that ftp.postgresql.org publishes.
 - **Requirements:** make, bzip2 and the development packages of OpenSSL. It takes
   about a minute.
 
-### 2.6 Libraries
+### 2.7 Libraries
 
 Built with the native GCC in C++26, from the official repositories at the tag of
 their version (`software/src/<name>-<version>`), each in its own prefix:
