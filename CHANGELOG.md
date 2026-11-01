@@ -7,8 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-First version, to be released as 0.1.0: the toolchain scripts of guita, as
-components.
+## [0.1.0] - 2026-11-01
+
+First version: the toolchain scripts of guita, as components.
 
 ### Added
 
@@ -36,3 +37,6 @@ components.
   and CI, in the README and `docs/toolchain.md`.
 - Continuous integration on GitHub Actions: the version against the branch, the
   syntax of the scripts, and a test installation in the official GCC image.
+
+[Unreleased]: https://github.com/madialeva/toolchain-cpp/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/madialeva/toolchain-cpp/releases/tag/v0.1.0
