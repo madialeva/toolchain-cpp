@@ -13,7 +13,7 @@
 
 ## 2. Documentación
 
-- [ ] 2.1 Documentar la comprobación en AGENTS.md (Verification, Local environment y Repository layout) y en `docs/toolchain.md` (§1), según la decisión 5. Verificar que coincide con el script y el workflow.
+- [x] 2.1 Documentar la comprobación en AGENTS.md (Verification, Local environment y Repository layout) y en `docs/toolchain.md` (§1), según la decisión 5. Verificar que coincide con el script y el workflow.
 
 ## 3. Verificación
 

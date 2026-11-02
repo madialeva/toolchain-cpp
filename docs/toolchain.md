@@ -69,6 +69,7 @@ Every download is checked before anything is built or removed (`lib/common.sh`):
 | The SHA-256 its server publishes (`<url>.sha256`) | Qt's tarballs, PostgreSQL |
 | The checksums of the release | buf |
 | A shallow clone of the version's tag from the official repository | libpqxx, cpp-httplib, protobuf (also their `-mingw` builds) |
+| A SHA-256 pinned in the repository, copied from the release | shellcheck (§1.6) |
 
 A download that does not match fails, naming the file to remove.
 
@@ -79,6 +80,37 @@ install with an executable gets a run path to its `libstdc++` (newer than the
 system's), so that it runs without `LD_LIBRARY_PATH`. The C++ libraries are
 built in C++26, the projects' standard: abseil aliases `std` types depending on
 the standard, and must agree with the projects.
+
+### 1.6 Checking the scripts
+
+`scripts/check-scripts.sh` checks every script of the repository, and the CI runs
+it on every push and pull request (job `Version and scripts`):
+
+- **Which:** `install.sh`, `versions.sh` and the scripts of `lib/`, `components/`
+  and `scripts/`, by pattern, so a new component is checked without touching the
+  script.
+- **First their syntax** (`bash -n`); a script bash cannot read stops the check
+  there.
+- **Then shellcheck,** at the version the script pins (0.11.0), with its default
+  checks, style included, all the scripts in one run. `.shellcheckrc` resolves
+  the paths of the `# shellcheck source=` directives from each script and follows
+  them, so shellcheck sees `lib/common.sh` and knows, for example, that the
+  `NAME`, `VERSION` and `PREFIXES` of a component are used; an editor's
+  shellcheck reads the same file.
+- **Which shellcheck:** the one in the PATH if it is the pinned version;
+  otherwise the official binary for Linux x86_64, downloaded once to
+  `software/src/shellcheck-v0.11.0` and checked against the SHA-256 pinned in the
+  script before it is extracted (§1.4). A newer shellcheck may report new
+  findings, so moving to it is a change of its own, as with the components'
+  versions.
+- **The result:** any error or finding fails, naming the script, the line and the
+  code (`SCxxxx`). In GitHub Actions each one is also an annotation on its line of
+  the pull request's diff. A finding is fixed; when the code is right as it is,
+  it is silenced on its line with the reason next to it, never globally.
+- **Not checked:** shellcheck's optional checks (`--enable=all`, hundreds of
+  findings of deliberate style), and the bash inside the workflow.
+
+It needs curl, tar with xz and sha256sum.
 
 ## 2. Components
 
