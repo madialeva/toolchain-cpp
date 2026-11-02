@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-02
+
+Components to build a project for 64-bit Windows from Linux.
+
 ### Added
 
 - Components to build a project for 64-bit Windows from Linux, all static and
@@ -62,5 +66,6 @@ First version: the toolchain scripts of guita, as components.
 - Continuous integration on GitHub Actions: the version against the branch, the
   syntax of the scripts, and a test installation in the official GCC image.
 
-[Unreleased]: https://github.com/madialeva/toolchain-cpp/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/madialeva/toolchain-cpp/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/madialeva/toolchain-cpp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/madialeva/toolchain-cpp/releases/tag/v0.1.0
