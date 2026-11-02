@@ -1,7 +1,8 @@
 # Checks every push to a development or release branch and every pull request toward
-# one: the version against the branch, the syntax of the scripts, and a test
-# installation of quick components inside the official image of the native GCC, the
-# one the projects' CI runs in (docs/toolchain.md). GCC and Qt are never built here.
+# one: the version against the branch, the scripts (their syntax and shellcheck, as
+# scripts/check-scripts.sh does locally), and a test installation of quick components
+# inside the official image of the native GCC, the one the projects' CI runs in
+# (docs/toolchain.md). GCC and Qt are never built here.
 name: CI
 
 on:
@@ -21,7 +22,7 @@ permissions:
 
 jobs:
   checks:
-    name: Version and syntax
+    name: Version and scripts
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -37,16 +38,10 @@ jobs:
           BRANCH: ${{ github.base_ref || github.ref_name }}
         run: scripts/check-version.sh "$BRANCH"
 
-      - name: Check the syntax of the scripts
-        run: |
-          status=0
-          for script in install.sh versions.sh lib/*.sh components/*.sh scripts/*.sh; do
-              if ! bash -n "$script"; then
-                  echo "::error file=$script::Syntax error in $script"
-                  status=1
-              fi
-          done
-          exit "$status"
+      # Their bash syntax, then shellcheck at the version the script fixes (downloaded
+      # and checked against its SHA-256), each finding annotated on its line
+      - name: Check the scripts
+        run: scripts/check-scripts.sh
 
   install:
     name: Test installation

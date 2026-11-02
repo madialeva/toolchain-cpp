@@ -86,6 +86,7 @@ check_executable() {
         return 1
     fi
     say "$exe imports only these DLLs of the system:"
+    # shellcheck disable=SC2001 # indents every line of a multi-line text
     sed 's/^/     /' <<<"$dlls"
 }
 
@@ -201,6 +202,7 @@ check_compiler() {
         output="${output//$'\r'/}"
         if ((status != 0)) || [[ "$output" != "$EXPECTED" ]]; then
             echo "error: $exe failed under $(wine --version) (exit status $status), printing:" >&2
+            # shellcheck disable=SC2001 # indents every line of a multi-line text
             sed 's/^/  /' <<<"$output" >&2
             echo "instead of:" >&2
             echo "  $EXPECTED" >&2
