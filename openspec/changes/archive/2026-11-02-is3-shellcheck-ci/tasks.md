@@ -17,5 +17,5 @@
 
 ## 3. Verificación
 
-- [ ] 3.1 El usuario hace push de la rama y el CI pasa, con el paso `Check the scripts` usando shellcheck 0.11.0.
-- [ ] 3.2 El usuario revisa el cambio y da el visto bueno.
+- [x] 3.1 El usuario hace push de la rama y el CI pasa, con el paso `Check the scripts` usando shellcheck 0.11.0.
+- [x] 3.2 El usuario revisa el cambio y da el visto bueno.
