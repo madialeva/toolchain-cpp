@@ -1,0 +1,6 @@
+# shellcheck configuration of the repository, read by scripts/check-scripts.sh, the CI
+# and editors alike (docs/toolchain.md, "Checking the scripts"). The paths of the
+# "shellcheck source=" directives are relative to each script, and the sourced files
+# are followed, so that the variables lib/common.sh uses count as used
+source-path=SCRIPTDIR
+external-sources=true

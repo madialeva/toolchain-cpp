@@ -56,10 +56,11 @@ versions.sh           the version of every component
 components/           one script per component
 lib/common.sh         functions common to the components
 patches/              patches the components apply, named after what they patch
-scripts/              tools of the repository (check-version.sh)
+scripts/              tools of the repository (check-version.sh, check-scripts.sh)
 docs/toolchain.md     the technical reference
 software/             what the components download, build and install (ignored)
 openspec/             specs and changes, versioned and public
+.shellcheckrc         shellcheck's configuration, for the script, the CI and editors
 ```
 
 `software/` holds the sources in `src/` and one prefix per component and
@@ -83,8 +84,14 @@ needs first.
   - the failure cases, in a `SOFTWARE_DIR` under `tmp/` with links to what is
     already built, removed afterwards.
 - The CI (`.github/workflows/ci.yml`) runs the quick checks on every push and
-  pull request: the version against the branch, the syntax of the scripts, and
-  a test installation of quick components in the official GCC image.
+  pull request: the version against the branch, the scripts (their syntax and
+  shellcheck), and a test installation of quick components in the official GCC
+  image.
+- `scripts/check-scripts.sh` runs the CI's check of the scripts locally, with
+  the shellcheck version it pins; run it before every commit that touches a
+  script. A shellcheck finding is fixed; if it must stay, it is silenced on its
+  line with the reason next to it (`# shellcheck disable=SCxxxx # <reason>`),
+  never in `.shellcheckrc`.
 - Long builds run in the background, with their time and peak disk measured
   for `docs/toolchain.md`.
 - GUI checks run on a virtual display (`Xvfb :99`), never on the user's
@@ -134,6 +141,9 @@ Text uses LF.
     libpq (`libpqxx`), and the X11, xcb and OpenSSL development packages that
     `docs/toolchain.md` lists for `qt-static` and `libpq-static`.
 - Wine is optional: the check of `gcc-mingw` runs its test program with it.
+- shellcheck need not be installed: `scripts/check-scripts.sh` downloads the
+  version it pins when the one in the PATH is another (EL9's EPEL has 0.10.0,
+  still useful in an editor, which reads the same `.shellcheckrc`).
 - Docker, to try the CI's steps in its image locally.
 
 ## Working preferences
